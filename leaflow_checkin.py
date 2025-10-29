@@ -1,13 +1,14 @@
-# -*- coding: utf-8 -*-    
-"""    
-cron "34 18 * * *" script-path=leaflow_checkin.py,tag=匹配cron用    
-new Env('leaflow签到')    
-"""    
-import os    
-import re    
-import sys    
-import time    
-import random    
+# -*- coding: utf-8 -*-
+"""
+cron "34 18 * * *" script-path=leaflow_checkin.py,tag=匹配cron用
+new Env('leaflow签到')
+"""
+import os
+import re
+import sys
+import time
+import json
+import random
 from datetime import datetime, timedelta    
   
   
@@ -65,17 +66,49 @@ def now_sh():
     return datetime.now(tz=SH_TZ) if SH_TZ else datetime.now()    
   
   
-def build_session(cookie: str):    
-    s = requests.Session()    
-    s.headers.update({    
-        "User-Agent": UA,    
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",    
-        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",    
-        "Connection": "keep-alive",    
-        "Cookie": cookie.strip(),    
-    })    
-    if PROXIES:    
-        s.proxies.update(PROXIES)    
+def parse_cookie_json(cookie_str: str) -> dict:
+    """
+    解析 JSON 格式的 cookie 配置
+    格式: {"leaflow_session":"xxx","remember_web_xxx":"yyy","XSRF-TOKEN":"zzz"}
+    """
+    try:
+        cookies_dict = json.loads(cookie_str.strip())
+        if not isinstance(cookies_dict, dict):
+            raise ValueError("Cookie 必须是 JSON 对象格式")
+        return cookies_dict
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Cookie JSON 解析失败: {e}")
+
+
+def build_session(cookie_json: str):
+    """
+    构建会话，使用 JSON 格式的多 cookie 认证
+    """
+    s = requests.Session()
+
+    # 设置完整的浏览器 headers
+    s.headers.update({
+        "User-Agent": UA,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive",
+        "DNT": "1",
+        "Upgrade-Insecure-Requests": "1",
+    })
+
+    # 解析并设置多个 cookie（不指定domain，让浏览器自动处理）
+    cookies_dict = parse_cookie_json(cookie_json)
+
+    if DEBUG_MODE:
+        print(f"  [DEBUG] 解析到的 cookies: {list(cookies_dict.keys())}")
+
+    for name, value in cookies_dict.items():
+        s.cookies.set(name, value)
+
+    if PROXIES:
+        s.proxies.update(PROXIES)
+
     return s    
   
   
@@ -167,6 +200,62 @@ def extract_reward(html: str) -> float:
     return 0    
   
   
+def test_authentication(session, account_name: str) -> tuple[bool, str]:
+    """
+    测试 cookie 是否有效
+    尝试访问多个需要登录的页面进行验证
+    """
+    try:
+        kwargs = {"timeout": TIMEOUT, "allow_redirects": True}
+        if USE_CURL_CFFI:
+            kwargs["impersonate"] = "chrome120"
+
+        # 测试多个URL（参考参考脚本的逻辑）
+        main_site = "https://leaflow.net"
+        test_urls = [
+            f"{main_site}/dashboard",
+            f"{main_site}/profile",
+            f"{main_site}/user",
+            BASE,  # 签到页面
+        ]
+
+        for url in test_urls:
+            if DEBUG_MODE:
+                print(f"  [DEBUG] 测试URL: {url}")
+
+            r = session.get(url, **kwargs)
+
+            if DEBUG_MODE:
+                print(f"  [DEBUG] 状态码: {r.status_code}, URL: {r.url}")
+
+            # 检查状态码200
+            if r.status_code == 200:
+                content = r.text.lower()
+                # 检查登录标识
+                login_indicators = ['dashboard', 'profile', 'user', 'logout', 'welcome', '签到', 'checkin']
+                if any(indicator in content for indicator in login_indicators):
+                    if DEBUG_MODE:
+                        print(f"  [DEBUG] 认证成功，在 {url} 检测到登录标识")
+                    return True, "认证有效"
+
+            # 检查重定向（301, 302, 303）
+            elif r.status_code in [301, 302, 303]:
+                location = r.headers.get('location', '')
+                if 'login' not in location.lower():
+                    if DEBUG_MODE:
+                        print(f"  [DEBUG] 认证成功（重定向到非登录页）")
+                    return True, "认证有效（重定向）"
+
+        return False, "所有认证测试均未通过"
+
+    except requests.exceptions.Timeout:
+        return False, f"认证测试超时（{TIMEOUT}秒）"
+    except requests.exceptions.ConnectionError as e:
+        return False, f"连接失败: {str(e)[:80]}"
+    except Exception as e:
+        return False, f"认证测试异常: {str(e)[:80]}"
+
+
 def parse_result(html: str) -> tuple[str, str, float]:    
     if not html:    
         return "unknown", "页面内容为空", 0    
@@ -218,86 +307,106 @@ def parse_result(html: str) -> tuple[str, str, float]:
     return "unknown", "未识别到明确状态", 0    
   
   
-def sign_once_impl(cookie: str) -> tuple[str, str, float]:    
-    s = build_session(cookie)    
-        
-    try:    
-        kwargs = {"timeout": TIMEOUT, "allow_redirects": True}    
-        if USE_CURL_CFFI:    
-            kwargs["impersonate"] = "chrome120"    
-            
-        r1 = s.get(f"{BASE}/", **kwargs)    
-            
-        if "login" in r1.url.lower():    
-            return "invalid", "被重定向到登录页，Cookie 已失效", 0    
-            
-        if r1.status_code == 403:    
-            return "error", "403 Forbidden（触发风控）", 0    
-            
-        if r1.status_code != 200:    
-            return "error", f"首页返回 {r1.status_code}", 0    
-            
-        html1 = r1.text or ""    
-            
-        if any(x in html1 for x in ["请登录", "未登录"]):    
-            return "invalid", "页面提示未登录", 0    
-            
-        form_data = {"checkin": ""}    
-        form_data.update(extract_csrf(html1))    
-            
-        headers_post = {    
-            "Content-Type": "application/x-www-form-urlencoded",    
-            "Origin": BASE,    
-            "Referer": f"{BASE}/",    
-        }    
-            
-        r2 = s.post(f"{BASE}/index.php", data=form_data, headers=headers_post, **kwargs)    
-            
-        if r2.status_code == 403:    
-            return "error", "POST 被拒绝 403", 0    
-            
+def sign_once_impl(session) -> tuple[str, str, float]:
+    """
+    使用已构建的 session 执行签到
+    """
+    try:
+        kwargs = {"timeout": TIMEOUT, "allow_redirects": True}
+        if USE_CURL_CFFI:
+            kwargs["impersonate"] = "chrome120"
+
+        r1 = session.get(f"{BASE}/", **kwargs)
+
+        if "login" in r1.url.lower():
+            return "invalid", "被重定向到登录页，Cookie 已失效", 0
+
+        if r1.status_code == 403:
+            return "error", "403 Forbidden（触发风控）", 0
+
+        if r1.status_code != 200:
+            return "error", f"首页返回 {r1.status_code}", 0
+
+        html1 = r1.text or ""
+
+        if any(x in html1 for x in ["请登录", "未登录"]):
+            return "invalid", "页面提示未登录", 0
+
+        form_data = {"checkin": ""}
+        form_data.update(extract_csrf(html1))
+
+        headers_post = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Origin": BASE,
+            "Referer": f"{BASE}/",
+        }
+
+        r2 = session.post(f"{BASE}/index.php", data=form_data, headers=headers_post, **kwargs)
+
+        if r2.status_code == 403:
+            return "error", "POST 被拒绝 403", 0
+
         html2 = r2.text or ""
-        
+
         if DEBUG_MODE:
             # 保存HTML到临时文件用于调试
             debug_file = f"debug_response_{int(time.time())}.html"
             with open(debug_file, "w", encoding="utf-8") as f:
                 f.write(html2)
-            print(f"[DEBUG] 响应已保存到: {debug_file}")
-        
-        status, msg, amount = parse_result(html2)    
-            
-        if status == "unknown" or (status == "success" and amount == 0):    
-            time.sleep(1)    
-            r3 = s.get(f"{BASE}/", **kwargs)    
-            status2, msg2, amount2 = parse_result(r3.text or "")    
-            if status2 != "unknown":    
-                return status2, msg2, amount2    
-            
-        return status, msg, amount    
-            
-    except requests.exceptions.Timeout:    
-        return "error", f"请求超时（{TIMEOUT}秒）", 0    
-    except requests.exceptions.ConnectionError as e:    
-        return "error", f"连接失败: {str(e)[:80]}", 0    
-    except Exception as e:    
+            print(f"  [DEBUG] 响应已保存到: {debug_file}")
+
+        status, msg, amount = parse_result(html2)
+
+        if status == "unknown" or (status == "success" and amount == 0):
+            time.sleep(1)
+            r3 = session.get(f"{BASE}/", **kwargs)
+            status2, msg2, amount2 = parse_result(r3.text or "")
+            if status2 != "unknown":
+                return status2, msg2, amount2
+
+        return status, msg, amount
+
+    except requests.exceptions.Timeout:
+        return "error", f"请求超时（{TIMEOUT}秒）", 0
+    except requests.exceptions.ConnectionError as e:
+        return "error", f"连接失败: {str(e)[:80]}", 0
+    except Exception as e:
         return "error", f"{e.__class__.__name__}: {str(e)[:100]}", 0    
   
   
-def sign_with_retry(cookie: str, account_name: str) -> tuple[str, str, float]:    
-    for attempt in range(1, RETRY_TIMES + 1):    
-        if attempt > 1:    
-            print(f"  🔄 第 {attempt}/{RETRY_TIMES} 次重试...")    
-            time.sleep(RETRY_DELAY)    
-            
-        status, msg, amount = sign_once_impl(cookie)    
-            
-        if status in ("success", "already", "invalid"):    
-            return status, msg, amount    
-            
-        if attempt < RETRY_TIMES:    
-            print(f"  ⚠️ {msg}，{RETRY_DELAY}秒后重试...")    
-        
+def sign_with_retry(cookie_json: str, account_name: str) -> tuple[str, str, float]:
+    """
+    带认证测试和重试的签到
+    """
+    # 构建 session（包含多个 cookie）
+    try:
+        session = build_session(cookie_json)
+    except ValueError as e:
+        return "error", f"Cookie 配置错误: {str(e)}", 0
+
+    # 先测试认证
+    print(f"  🔐 验证 Cookie 有效性...")
+    auth_valid, auth_msg = test_authentication(session, account_name)
+
+    if not auth_valid:
+        return "invalid", f"Cookie 验证失败: {auth_msg}", 0
+
+    print(f"  ✅ Cookie 验证通过")
+
+    # 执行签到（带重试）
+    for attempt in range(1, RETRY_TIMES + 1):
+        if attempt > 1:
+            print(f"  🔄 第 {attempt}/{RETRY_TIMES} 次重试...")
+            time.sleep(RETRY_DELAY)
+
+        status, msg, amount = sign_once_impl(session)
+
+        if status in ("success", "already", "invalid"):
+            return status, msg, amount
+
+        if attempt < RETRY_TIMES:
+            print(f"  ⚠️ {msg}，{RETRY_DELAY}秒后重试...")
+
     return status, f"{msg}（重试 {RETRY_TIMES} 次后失败）", 0    
   
   
@@ -344,18 +453,19 @@ def safe_send_notify(title, content):
         return False  
   
   
-def main():    
+def main():
     print(f"{'='*50}")
-    print(f"  Leaflow 签到脚本 v2.0（修复版）")
-    print(f"  修复时间: 2025-10-05")
-    print(f"  修复内容: 解决误取历史金额问题")
+    print(f"  Leaflow 签到脚本 v3.0（认证优化版）")
+    print(f"  修复时间: {datetime.now().strftime('%Y-%m-%d')}")
+    print(f"  修复内容: 采用多 Cookie JSON 认证方式")
+    print(f"  Cookie 格式: JSON (leaflow_session + remember_web + XSRF-TOKEN)")
     if DEBUG_MODE:
         print(f"  🐛 调试模式: 已启用")
     print(f"{'='*50}\n")
-    
-    cookies_env = os.getenv("LEAFLOW_COOKIE", "").strip()    
-    if not cookies_env:    
-        print("❌ 未设置 LEAFFLOW_COOKIE 环境变量")    
+
+    cookies_env = os.getenv("LEAFLOW_COOKIE", "").strip()
+    if not cookies_env:
+        print("❌ 未设置 LEAFLOW_COOKIE 环境变量")
         sys.exit(1)    
         
     raw_list = []    

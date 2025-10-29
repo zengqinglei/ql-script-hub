@@ -154,7 +154,7 @@ ql-script-hub/
 
 | 变量名 | 说明 | 是否必需 | 示例值 | 备注 |
 |--------|------|----------|--------|------|
-| `LEAFLOW_COOKIE` | leaflow网站Cookie | **必需** | `cookie` | 多账号用`&`分隔 |
+| `LEAFLOW_COOKIE` | leaflow网站Cookie（JSON格式） | **必需** | `{"leaflow_session":"xxx","remember_web_xxx":"yyy","XSRF-TOKEN":"zzz"}` | JSON格式包含3个cookie，多账号用`&`分隔 |
 
 
 #### ⏰ 随机化配置（所有脚本共用）
@@ -235,13 +235,19 @@ ql-script-hub/
 2. 在青龙面板中添加环境变量TY_USERNAME（手机号）
 3. 在青龙面板中添加环境变量TY_PASSWD（对应密码）
 
-#### leaflow配置 
-1. 浏览器访问 [leaflow](https://leaflow.net/workspaces) ，关闭设备锁
-2. 点击签到试用
-3. 在新弹出来的页面中按F12 网络
-4. 点击签到
-5. 观察F12 网络中新出现的链接
-6. 在新出现的请求中找到cookie值为PHPSESSID=XXXXX的一串
+#### leaflow配置（JSON格式）
+1. 浏览器访问 [leaflow](https://leaflow.net/workspaces) 并登录
+2. 按 F12 打开开发者工具 → Application（应用）标签页
+3. 左侧找到 Cookies → https://leaflow.net
+4. 复制以下三个 cookie 的完整值：
+   - `leaflow_session`：会话token（通常以 eyJ 开头）
+   - `remember_web_59ba36addc2b2f9401580f014c7f58ea4e30989d`：持久化登录token
+   - `XSRF-TOKEN`：CSRF防护token
+5. 组合成 JSON 格式设置到青龙面板环境变量 LEAFLOW_COOKIE：
+   ```json
+   {"leaflow_session":"你的session值","remember_web_59ba36addc2b2f9401580f014c7f58ea4e30989d":"你的remember值","XSRF-TOKEN":"你的token值"}
+   ```
+6. 注意：JSON 格式必须使用双引号，且不要有多余的空格或换行
 
 #### NGA论坛配置
 1. 安装抓包工具并开启 HTTPS 解密，安装并信任证书 Android：HTTP Canary、HttpToolkit、mitmproxy、Charles; iOS：Stream、Charles
