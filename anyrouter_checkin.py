@@ -44,6 +44,9 @@ except Exception as e:
 # ---------------- 配置项 ----------------
 TIMEOUT = int(os.getenv("ANYROUTER_TIMEOUT", "30"))
 DEBUG_MODE = os.getenv("DEBUG_MODE", "false").lower() == "true"
+VERIFY_SSL = os.getenv("ANYROUTER_VERIFY_SSL", "true").lower() == "true"
+MAX_RETRIES = int(os.getenv("ANYROUTER_MAX_RETRIES", "3"))
+BASE_URL = os.getenv("ANYROUTER_BASE_URL", "https://anyrouter.top")  # 支持自定义域名
 
 
 def safe_send_notify(title, content):
@@ -110,7 +113,28 @@ def parse_cookies(cookies_data):
 
 def build_session(cookies_dict, api_user):
     """构建请求会话"""
+    from requests.adapters import HTTPAdapter
+    from urllib3.util.retry import Retry
+
     session = requests.Session()
+
+    # 配置重试策略
+    retry_strategy = Retry(
+        total=MAX_RETRIES,
+        backoff_factor=1,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["HEAD", "GET", "POST", "OPTIONS"]
+    )
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+
+    # 设置 SSL 验证
+    session.verify = VERIFY_SSL
+    if not VERIFY_SSL:
+        # 禁用 SSL 警告
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     # 设置基本headers
     session.headers.update({
@@ -118,8 +142,8 @@ def build_session(cookies_dict, api_user):
         'Accept': 'application/json, text/plain, */*',
         'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
         'Accept-Encoding': 'gzip, deflate, br',
-        'Referer': 'https://anyrouter.top/console',
-        'Origin': 'https://anyrouter.top',
+        'Referer': f'{BASE_URL}/console',
+        'Origin': BASE_URL,
         'Connection': 'keep-alive',
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
@@ -137,7 +161,7 @@ def build_session(cookies_dict, api_user):
 def get_user_info(session):
     """获取用户信息"""
     try:
-        response = session.get('https://anyrouter.top/api/user/self', timeout=TIMEOUT)
+        response = session.get(f'{BASE_URL}/api/user/self', timeout=TIMEOUT)
 
         if response.status_code == 200:
             data = response.json()
@@ -160,7 +184,7 @@ def get_basic_waf_cookies(session):
             print(f"  🔐 访问登录页获取基础 WAF cookies...")
 
         # 访问登录页面获取基础 WAF cookies（acw_tc, cdn_sec_tc）
-        response = session.get('https://anyrouter.top/login', timeout=TIMEOUT, allow_redirects=True)
+        response = session.get(f'{BASE_URL}/login', timeout=TIMEOUT, allow_redirects=True)
 
         if DEBUG_MODE:
             print(f'  [DEBUG] 登录页状态码: {response.status_code}')
@@ -198,6 +222,13 @@ def execute_waf_challenge(session, challenge_html, url):
         if DEBUG_MODE:
             print(f'  [DEBUG] WAF JavaScript 长度: {len(js_code)}')
 
+        # 从 BASE_URL 提取 host 和 pathname
+        from urllib.parse import urlparse
+        parsed_base = urlparse(BASE_URL)
+        base_host = parsed_base.netloc
+        parsed_url = urlparse(url)
+        url_pathname = parsed_url.path
+
         # 构建完整的浏览器环境模拟，并用 try-catch 包裹 WAF 代码
         js_env = f"""
         // 模拟 document 对象
@@ -219,14 +250,14 @@ def execute_waf_challenge(session, challenge_html, url):
         // 模拟 location 对象（包含所有可能的属性和方法）
         var location = {{
             href: '{url}',
-            protocol: 'https:',
-            host: 'anyrouter.top',
-            hostname: 'anyrouter.top',
+            protocol: '{parsed_url.scheme}:',
+            host: '{base_host}',
+            hostname: '{base_host}',
             port: '',
-            pathname: '{url.replace("https://anyrouter.top", "")}',
+            pathname: '{url_pathname}',
             search: '',
             hash: '',
-            origin: 'https://anyrouter.top',
+            origin: '{BASE_URL}',
             reload: function() {{}},
             replace: function() {{}},
             assign: function() {{}},
@@ -342,7 +373,8 @@ def check_in_account(account_info, account_index):
         }
         session.headers.update(checkin_headers)
 
-        response = session.post('https://anyrouter.top/api/user/sign_in', timeout=TIMEOUT)
+        checkin_url = f'{BASE_URL}/api/user/sign_in'
+        response = session.post(checkin_url, timeout=TIMEOUT)
 
         if DEBUG_MODE:
             print(f'  [DEBUG] 签到响应状态码: {response.status_code}')
@@ -351,10 +383,10 @@ def check_in_account(account_info, account_index):
         # 检查是否遇到 WAF 挑战
         if response.status_code == 200 and '<script>' in response.text and 'arg1=' in response.text:
             # 尝试使用 execjs 解决 WAF 挑战
-            if execute_waf_challenge(session, response.text, 'https://anyrouter.top/api/user/sign_in'):
+            if execute_waf_challenge(session, response.text, checkin_url):
                 # WAF 挑战成功，重新请求
                 time.sleep(1)
-                response = session.post('https://anyrouter.top/api/user/sign_in', timeout=TIMEOUT)
+                response = session.post(checkin_url, timeout=TIMEOUT)
 
                 if DEBUG_MODE:
                     print(f'  [DEBUG] 重试签到响应状态码: {response.status_code}')

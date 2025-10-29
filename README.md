@@ -162,7 +162,10 @@ ql-script-hub/
 | 变量名 | 说明 | 是否必需 | 示例值 | 备注 |
 |--------|------|----------|--------|------|
 | `ANYROUTER_ACCOUNTS` | AnyRouter账号配置（JSON数组格式） | **必需** | 见下方示例 | JSON数组格式，支持多账号 |
+| `ANYROUTER_BASE_URL` | API基础地址 | 可选 | `https://q.quuvv.cn` | 默认`https://anyrouter.top`，DNS污染时可更换 |
 | `ANYROUTER_TIMEOUT` | 请求超时时间（秒） | 可选 | `60` | 默认60秒 |
+| `ANYROUTER_VERIFY_SSL` | SSL证书验证 | 可选 | `false` | 默认`true`，网络问题时可设为`false` |
+| `ANYROUTER_MAX_RETRIES` | 最大重试次数 | 可选 | `5` | 默认3次 |
 
 **ANYROUTER_ACCOUNTS 配置示例：**
 ```json
