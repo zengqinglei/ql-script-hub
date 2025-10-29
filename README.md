@@ -57,7 +57,7 @@ ql-script-hub/
    ```
   <img width="774" height="1112" alt="image" src="https://github.com/user-attachments/assets/de6cf07f-7af2-42b9-8321-c2ccc542820b" />
   
-2. **配置环境变量**
+2. **配置环境变量（复用青龙通知模块）**
 
    
 | 变量名 | 说明 | 是否必需 | 示例值 | 备注 |
@@ -69,6 +69,7 @@ ql-script-hub/
 | `DD_BOT_TOKEN` | 钉钉机器人Token | 可选 | `xxxxxxxxxxxxxxxxxx` | 钉钉群机器人 |
 | `DD_BOT_SECRET` | 钉钉机器人密钥 | 可选 | `xxxxxxxxxxxxxxxxxx` | 钉钉群机器人密钥（可选） |
 | `BARK_PUSH` | Bark推送地址 | 可选 | `https://api.day.app/your_key/` | iOS Bark推送 |
+| `QYWX_KEY` | 企业微信机器人Key | 可选 | `5036ccf4-7f42-4d43-a333-bffa10f35369` | 企业微信群机器人推送 |
 
 #### 🏔️ 恩山论坛签到配置
 
