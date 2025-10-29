@@ -27,6 +27,7 @@ ql-script-hub/
 ├── README.md              # 项目说明文档
 ├── LICENSE                # 开源许可证
 ├── aliyunpan_signin.py    # 阿里云盘签到脚本
+├── anyrouter_checkin.py   # AnyRouter签到脚本
 ├── baidu_signin.py        # 百度网盘签到
 ├── enshan_checkin.py      # 恩山论坛签到脚本
 ├── nodeseek_checkin.py    # nodeseek签到脚本
@@ -156,6 +157,39 @@ ql-script-hub/
 |--------|------|----------|--------|------|
 | `LEAFLOW_COOKIE` | leaflow网站Cookie（JSON格式） | **必需** | `{"leaflow_session":"xxx","remember_web_xxx":"yyy","XSRF-TOKEN":"zzz"}` | JSON格式包含3个cookie，多账号用`&`分隔 |
 
+#### 🌐 AnyRouter签到配置
+
+| 变量名 | 说明 | 是否必需 | 示例值 | 备注 |
+|--------|------|----------|--------|------|
+| `ANYROUTER_ACCOUNTS` | AnyRouter账号配置（JSON数组格式） | **必需** | 见下方示例 | JSON数组格式，支持多账号 |
+| `ANYROUTER_TIMEOUT` | 请求超时时间（秒） | 可选 | `60` | 默认60秒 |
+
+**ANYROUTER_ACCOUNTS 配置示例：**
+```json
+[
+  {
+    "cookies": {
+      "session": "your_session_cookie_value",
+      "token": "your_token_cookie_value"
+    },
+    "api_user": "your_api_user_id"
+  }
+]
+```
+
+**多账号配置示例：**
+```json
+[
+  {
+    "cookies": {"session": "account1_session", "token": "account1_token"},
+    "api_user": "user_id_1"
+  },
+  {
+    "cookies": {"session": "account2_session", "token": "account2_token"},
+    "api_user": "user_id_2"
+  }
+]
+```
 
 #### ⏰ 随机化配置（所有脚本共用）
 
@@ -248,6 +282,33 @@ ql-script-hub/
    {"leaflow_session":"你的session值","remember_web_59ba36addc2b2f9401580f014c7f58ea4e30989d":"你的remember值","XSRF-TOKEN":"你的token值"}
    ```
 6. 注意：JSON 格式必须使用双引号，且不要有多余的空格或换行
+
+#### AnyRouter配置（JSON数组格式）
+1. 浏览器访问 [AnyRouter](https://anyrouter.top) 并登录
+2. 按 F12 打开开发者工具 → Network（网络）标签页
+3. 刷新页面，找到任意 API 请求（如 `/api/user/self`）
+4. 查看请求的 Headers：
+   - **Cookies**：复制 Cookie 字段的值（如 `session=xxx; token=xxx`）
+   - **new-api-user**：复制该请求头的值（这是你的 api_user ID）
+5. 将 Cookie 字符串转换为 JSON 对象格式：
+   - 字符串格式：`session=abc123; token=xyz789`
+   - JSON格式：`{"session":"abc123","token":"xyz789"}`
+6. 组合成 JSON 数组格式设置到青龙面板环境变量 ANYROUTER_ACCOUNTS：
+   ```json
+   [{"cookies":{"session":"你的session值","token":"你的token值"},"api_user":"你的api_user值"}]
+   ```
+7. 依赖安装：
+   - 脚本依赖 `PyExecJS` 库用于处理 WAF 挑战
+   - 在青龙面板安装方法：
+     ```bash
+     # 依赖管理 → Python3 → 添加 PyExecJS → 安装
+     ```
+
+8. 注意：
+   - 必须使用 JSON 数组格式 `[{}]`
+   - JSON 格式必须使用双引号
+   - 多账号添加多个对象，用逗号分隔
+   - 脚本会自动处理 WAF 挑战，无需手动配置 WAF cookies
 
 #### NGA论坛配置
 1. 安装抓包工具并开启 HTTPS 解密，安装并信任证书 Android：HTTP Canary、HttpToolkit、mitmproxy、Charles; iOS：Stream、Charles
