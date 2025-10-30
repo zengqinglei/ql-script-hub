@@ -380,7 +380,6 @@ def check_in_account(account_info, account_index):
         if before_success and before_info:
             print(f"  💰 签到前: {before_info}")
             # 解析余额数据
-            import re
             quota_match = re.search(r'\$(\d+\.?\d*)', before_info.split(',')[0])
             used_match = re.search(r'\$(\d+\.?\d*)', before_info.split(',')[1])
             if quota_match:
