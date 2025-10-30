@@ -163,17 +163,33 @@ def get_user_info(session):
     try:
         response = session.get(f'{BASE_URL}/api/user/self', timeout=TIMEOUT)
 
+        if DEBUG_MODE:
+            print(f'  [DEBUG] 用户信息响应状态码: {response.status_code}')
+            print(f'  [DEBUG] 用户信息响应内容: {response.text}')
+
         if response.status_code == 200:
             data = response.json()
             if data.get('success'):
                 user_data = data.get('data', {})
                 quota = round(user_data.get('quota', 0) / 500000, 2)
                 used_quota = round(user_data.get('used_quota', 0) / 500000, 2)
+
+                if DEBUG_MODE:
+                    print(f'  [DEBUG] 解析余额 - quota: {user_data.get("quota", 0)} -> ${quota}')
+                    print(f'  [DEBUG] 解析已用 - used_quota: {user_data.get("used_quota", 0)} -> ${used_quota}')
+
                 return True, f'当前余额: ${quota}, 已使用: ${used_quota}'
+            else:
+                if DEBUG_MODE:
+                    print(f'  [DEBUG] 用户信息API返回success=false')
+        else:
+            if DEBUG_MODE:
+                print(f'  [DEBUG] 用户信息请求失败，状态码: {response.status_code}')
+
         return False, None
     except Exception as e:
         if DEBUG_MODE:
-            print(f'  [DEBUG] 获取用户信息失败: {str(e)[:50]}...')
+            print(f'  [DEBUG] 获取用户信息异常: {str(e)}')
         return False, None
 
 
@@ -340,33 +356,40 @@ def check_in_account(account_info, account_index):
 
     if not api_user:
         print(f'{account_name}: ❌ 未找到 API 用户标识')
-        return "error", "未找到 API 用户标识", None
+        return "error", "未找到 API 用户标识", None, None
 
     # 解析用户 cookies
     user_cookies = parse_cookies(cookies_data)
     if not user_cookies:
         print(f'{account_name}: ❌ 配置格式无效')
-        return "error", "配置格式无效", None
+        return "error", "配置格式无效", None, None
 
     # 构建会话
     session = build_session(user_cookies, api_user)
 
     try:
-        user_info_text = None
-
         # 步骤1：获取基础 WAF cookies
         get_basic_waf_cookies(session)
 
-        # 步骤2：获取用户信息
-        success, user_info = get_user_info(session)
-        if success and user_info:
-            print(f"  💰 {user_info}")
-            user_info_text = user_info
+        # 步骤2：获取签到前的用户信息
+        print(f"  📊 获取签到前余额...")
+        before_success, before_info = get_user_info(session)
+        before_quota = 0
+        before_used = 0
+
+        if before_success and before_info:
+            print(f"  💰 签到前: {before_info}")
+            # 解析余额数据
+            import re
+            quota_match = re.search(r'\$(\d+\.?\d*)', before_info.split(',')[0])
+            used_match = re.search(r'\$(\d+\.?\d*)', before_info.split(',')[1])
+            if quota_match:
+                before_quota = float(quota_match.group(1))
+            if used_match:
+                before_used = float(used_match.group(1))
 
         # 步骤3：执行签到
         print(f"  🎯 执行签到...")
-
-        # 执行签到请求
         checkin_headers = {
             'Content-Type': 'application/json',
             'X-Requested-With': 'XMLHttpRequest'
@@ -378,21 +401,18 @@ def check_in_account(account_info, account_index):
 
         if DEBUG_MODE:
             print(f'  [DEBUG] 签到响应状态码: {response.status_code}')
-            print(f'  [DEBUG] 响应内容: {response.text}')
+            print(f'  [DEBUG] 签到响应内容: {response.text}')
 
         # 检查是否遇到 WAF 挑战
         if response.status_code == 200 and '<script>' in response.text and 'arg1=' in response.text:
-            # 尝试使用 execjs 解决 WAF 挑战
             if execute_waf_challenge(session, response.text, checkin_url):
-                # WAF 挑战成功，重新请求
                 time.sleep(1)
                 response = session.post(checkin_url, timeout=TIMEOUT)
-
                 if DEBUG_MODE:
                     print(f'  [DEBUG] 重试签到响应状态码: {response.status_code}')
-                    print(f'  [DEBUG] 重试响应内容: {response.text}')
+                    print(f'  [DEBUG] 重试签到响应内容: {response.text}')
             else:
-                return "fail", "WAF 挑战失败", user_info_text
+                return "fail", "WAF 挑战失败", None, None
 
         if response.status_code == 200:
             try:
@@ -404,45 +424,56 @@ def check_in_account(account_info, account_index):
                 if result.get('ret') == 1 or result.get('code') == 0 or result.get('success'):
                     msg = result.get('msg', result.get('message', '签到成功'))
 
-                    # 提取签到奖励金额
-                    data = result.get('data', {})
-                    if isinstance(data, dict):
-                        reward = data.get('reward', data.get('amount', 0))
-                        if reward and reward > 0:
-                            reward_dollars = round(reward / 500000, 2)
-                            msg = f"{msg}，获得 ${reward_dollars}"
-                            if DEBUG_MODE:
-                                print(f'  [DEBUG] 提取到奖励金额: {reward} -> ${reward_dollars}')
-
-                    # 签到后重新获取用户信息（更新余额）
+                    # 步骤4：获取签到后的用户信息（计算余额变化）
+                    print(f"  📊 获取签到后余额...")
                     time.sleep(1)
-                    success, updated_user_info = get_user_info(session)
-                    if success and updated_user_info:
-                        user_info_text = updated_user_info
+                    after_success, after_info = get_user_info(session)
+                    after_quota = 0
+                    after_used = 0
+                    reward_amount = 0
 
-                    return "success", msg, user_info_text
+                    if after_success and after_info:
+                        print(f"  💰 签到后: {after_info}")
+                        # 解析余额数据
+                        quota_match = re.search(r'\$(\d+\.?\d*)', after_info.split(',')[0])
+                        used_match = re.search(r'\$(\d+\.?\d*)', after_info.split(',')[1])
+                        if quota_match:
+                            after_quota = float(quota_match.group(1))
+                        if used_match:
+                            after_used = float(used_match.group(1))
+
+                        # 计算奖励金额（总余额的增加）
+                        if before_success:
+                            reward_amount = (after_quota + after_used) - (before_quota + before_used)
+                            if reward_amount > 0:
+                                print(f"  🎁 签到奖励: ${reward_amount:.2f}")
+                                msg = f"{msg}，获得 ${reward_amount:.2f}"
+
+                        return "success", msg, after_info, reward_amount
+                    else:
+                        # 签到成功但获取余额失败
+                        return "success", msg, before_info if before_success else None, 0
                 else:
                     error_msg = result.get('msg', result.get('message', '未知错误'))
-                    return "fail", error_msg, user_info_text
+                    return "fail", error_msg, before_info if before_success else None, 0
             except json.JSONDecodeError:
-                # 如果不是 JSON 响应，检查是否包含成功标识
                 if 'success' in response.text.lower():
-                    return "success", "签到成功", user_info_text
+                    return "success", "签到成功", before_info if before_success else None, 0
                 else:
                     if DEBUG_MODE:
                         print(f'  [DEBUG] 无法解析响应为 JSON')
-                    return "fail", "响应格式无效", user_info_text
+                    return "fail", "响应格式无效", before_info if before_success else None, 0
         else:
-            return "fail", f"HTTP {response.status_code}", user_info_text
+            return "fail", f"HTTP {response.status_code}", before_info if before_success else None, 0
 
     except requests.exceptions.Timeout:
-        return "error", f"请求超时（{TIMEOUT}秒）", user_info_text
+        return "error", f"请求超时（{TIMEOUT}秒）", None, 0
     except requests.exceptions.ConnectionError as e:
-        return "error", f"连接失败: {str(e)[:80]}", user_info_text
+        return "error", f"连接失败: {str(e)[:80]}", None, 0
     except Exception as e:
         error_msg = f"{e.__class__.__name__}: {str(e)[:100]}"
         print(f'{account_name}: ❌ 签到过程中出错 - {error_msg}')
-        return "error", error_msg, user_info_text
+        return "error", error_msg, None, 0
     finally:
         session.close()
 
@@ -474,7 +505,7 @@ def main():
         name = f"账号{i + 1}"
 
         try:
-            status, msg, user_info = check_in_account(account, i)
+            status, msg, user_info, reward = check_in_account(account, i)
 
             if status == "success":
                 success_count += 1
@@ -482,7 +513,7 @@ def main():
                 if user_info:
                     print(f"💰 {user_info}")
 
-                # 优化后的通知内容（包含域名）
+                # 优化后的通知内容（包含域名和奖励）
                 notify_content = f"""🌟 AnyRouter 签到结果
 
 👤 账号: {name}
@@ -491,6 +522,9 @@ def main():
 
                 if user_info:
                     notify_content += f"\n💰 账户: {user_info}"
+
+                if reward and reward > 0:
+                    notify_content += f"\n🎁 本次奖励: ${reward:.2f}"
 
                 notify_content += f"\n⏰ 时间: {datetime.now().strftime('%m-%d %H:%M')}"
 
