@@ -519,32 +519,65 @@ def main():
             
         status, msg, amount = sign_with_retry(it["cookie"], name)    
             
-        if status == "success":    
-            success_count += 1    
-            if amount > 0:    
-                total_amount += amount    
-                print(f"✅ {name} {msg}")    
-                print(f"💰 本次获得: {amount} 元")    
-            else:    
-                print(f"✅ {name} {msg}")    
-                
-            safe_send_notify("Leaflow 签到成功", f"{name}：{msg}")  
+        if status == "success":
+            success_count += 1
+            if amount > 0:
+                total_amount += amount
+                print(f"✅ {name} {msg}")
+                print(f"💰 本次获得: {amount} 元")
+            else:
+                print(f"✅ {name} {msg}")
+
+            # 优化后的通知内容
+            notify_content = f"""🌟 Leaflow 签到结果
+
+👤 账号: {name}
+📝 签到: {msg}"""
+
+            if amount > 0:
+                notify_content += f"\n💰 奖励: {amount} 元"
+
+            notify_content += f"\n⏰ 时间: {datetime.now().strftime('%m-%d %H:%M')}"
+
+            safe_send_notify(f"Leaflow {name}签到成功", notify_content)  
             
-        elif status == "already":    
-            already_count += 1    
-            if amount > 0:    
-                total_amount += amount    
-                print(f"ℹ️ {name} {msg}")    
-            else:    
-                print(f"ℹ️ {name} 今日已签到")    
-              
-            if NOTIFY_ON_ALREADY:  
-                safe_send_notify("Leaflow 签到提醒", f"{name}：{msg}")  
+        elif status == "already":
+            already_count += 1
+            if amount > 0:
+                total_amount += amount
+                print(f"ℹ️ {name} {msg}")
+            else:
+                print(f"ℹ️ {name} 今日已签到")
+
+            if NOTIFY_ON_ALREADY:
+                # 优化后的通知内容
+                notify_content = f"""ℹ️ Leaflow 签到提醒
+
+👤 账号: {name}
+📅 状态: {msg}"""
+
+                if amount > 0:
+                    notify_content += f"\n💰 今日获得: {amount} 元"
+
+                notify_content += f"\n⏰ 时间: {datetime.now().strftime('%m-%d %H:%M')}"
+
+                safe_send_notify(f"Leaflow {name}已签到", notify_content)  
             
-        else:    
-            fail_count += 1    
-            print(f"❌ {name} 签到失败: {msg}")    
-            safe_send_notify("Leaflow 签到失败", f"{name}：{status} - {msg}")  
+        else:
+            fail_count += 1
+            print(f"❌ {name} 签到失败: {msg}")
+
+            # 优化后的通知内容
+            notify_content = f"""❌ Leaflow 签到失败
+
+👤 账号: {name}
+⚠️ 状态: {status}
+❌ 原因: {msg}
+⏰ 时间: {datetime.now().strftime('%m-%d %H:%M')}
+
+💡 建议: 请检查Cookie是否有效"""
+
+            safe_send_notify(f"Leaflow {name}签到失败", notify_content)  
             
         if it["idx"] < len(cookie_list):    
             time.sleep(random.uniform(2, 5))    
@@ -559,10 +592,20 @@ def main():
     print(f"  完成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")    
     print(f"{'='*50}\n")    
         
-    if len(cookie_list) > 1:    
-        summary = f"签到完成\n成功: {success_count} | 已签: {already_count} | 失败: {fail_count}"    
-        if total_amount > 0:    
-            summary += f"\n今日共获得: {total_amount} 元"    
+    if len(cookie_list) > 1:
+        summary = f"""📊 Leaflow 签到汇总
+
+📈 总计: {len(cookie_list)}个账号
+✅ 成功: {success_count}个
+ℹ️ 已签: {already_count}个
+❌ 失败: {fail_count}个
+📊 成功率: {(success_count + already_count)/len(cookie_list)*100:.1f}%"""
+
+        if total_amount > 0:
+            summary += f"\n💰 今日共获得: {total_amount} 元"
+
+        summary += f"\n⏰ 完成时间: {datetime.now().strftime('%m-%d %H:%M')}"
+
         safe_send_notify("Leaflow 签到汇总", summary)  
     
   
