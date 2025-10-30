@@ -378,7 +378,7 @@ def check_in_account(account_info, account_index):
 
         if DEBUG_MODE:
             print(f'  [DEBUG] 签到响应状态码: {response.status_code}')
-            print(f'  [DEBUG] 响应前100字符: {response.text[:100]}')
+            print(f'  [DEBUG] 响应内容: {response.text}')
 
         # 检查是否遇到 WAF 挑战
         if response.status_code == 200 and '<script>' in response.text and 'arg1=' in response.text:
@@ -390,15 +390,36 @@ def check_in_account(account_info, account_index):
 
                 if DEBUG_MODE:
                     print(f'  [DEBUG] 重试签到响应状态码: {response.status_code}')
-                    print(f'  [DEBUG] 重试响应前100字符: {response.text[:100]}')
+                    print(f'  [DEBUG] 重试响应内容: {response.text}')
             else:
                 return "fail", "WAF 挑战失败", user_info_text
 
         if response.status_code == 200:
             try:
                 result = response.json()
+
+                if DEBUG_MODE:
+                    print(f'  [DEBUG] 签到响应JSON: {json.dumps(result, ensure_ascii=False, indent=2)}')
+
                 if result.get('ret') == 1 or result.get('code') == 0 or result.get('success'):
                     msg = result.get('msg', result.get('message', '签到成功'))
+
+                    # 提取签到奖励金额
+                    data = result.get('data', {})
+                    if isinstance(data, dict):
+                        reward = data.get('reward', data.get('amount', 0))
+                        if reward and reward > 0:
+                            reward_dollars = round(reward / 500000, 2)
+                            msg = f"{msg}，获得 ${reward_dollars}"
+                            if DEBUG_MODE:
+                                print(f'  [DEBUG] 提取到奖励金额: {reward} -> ${reward_dollars}')
+
+                    # 签到后重新获取用户信息（更新余额）
+                    time.sleep(1)
+                    success, updated_user_info = get_user_info(session)
+                    if success and updated_user_info:
+                        user_info_text = updated_user_info
+
                     return "success", msg, user_info_text
                 else:
                     error_msg = result.get('msg', result.get('message', '未知错误'))
