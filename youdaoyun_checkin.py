@@ -6,6 +6,13 @@ new Env('有道云笔记签到')
 """
 
 import os
+import sys
+import io
+
+# 设置标准输出编码为UTF-8（解决Windows环境emoji显示问题）
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
 import requests
 import json
 import random
