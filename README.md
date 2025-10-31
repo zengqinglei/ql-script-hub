@@ -39,6 +39,7 @@ ql-script-hub/
 ├── smzdm_checkin.py       # 什么值得买签到脚本
 ├── deepflood_checkin.py   # deepflood签到脚本
 ├── leaflow_checkin.py     # leaflow签到脚本
+├── youdaoyun_checkin.py   # 有道云笔记签到脚本
 └── tieba_checkin.py       # 贴吧签到脚本
 ```
 
@@ -167,6 +168,12 @@ ql-script-hub/
 | `ANYROUTER_VERIFY_SSL` | SSL证书验证 | 可选 | `false` | 默认`true`，网络问题时可设为`false` |
 | `ANYROUTER_MAX_RETRIES` | 最大重试次数 | 可选 | `5` | 默认3次 |
 
+#### 📓 有道云笔记签到配置
+
+| 变量名 | 说明 | 是否必需 | 示例值 | 备注 |
+|--------|------|----------|--------|------|
+| `YOUDAO_COOKIE` | 有道云笔记Cookie | **必需** | 完整的Cookie字符串 | 单账号Cookie，多账号换行分隔 |
+
 **ANYROUTER_ACCOUNTS 配置示例：**
 ```json
 [
@@ -285,6 +292,20 @@ ql-script-hub/
    {"leaflow_session":"你的session值","remember_web_59ba36addc2b2f9401580f014c7f58ea4e30989d":"你的remember值","XSRF-TOKEN":"你的token值"}
    ```
 6. 注意：JSON 格式必须使用双引号，且不要有多余的空格或换行
+
+#### 有道云笔记Cookie获取
+1. 浏览器访问 [有道云笔记](https://note.youdao.com/) 并登录
+2. 按 F12 打开开发者工具 → Network（网络）标签页
+3. 刷新页面，找到任意请求
+4. 查看请求的 Headers → Cookie：复制完整的 Cookie 值
+5. Cookie示例：`__yadk_uid=xxx; YNOTE_SESS=xxx; YNOTE_PERS=xxx; ...`
+6. 在青龙面板环境变量中设置 `YOUDAO_COOKIE`，值为完整的Cookie字符串
+7. 多账号配置：每个Cookie单独一行，按顺序执行
+
+**注意：**
+- 必须包含 `YNOTE_PERS` 字段，脚本需要从中提取用户ID
+- Cookie会定期过期，失效后需要重新获取
+- 建议定期运行脚本避免Cookie失效
 
 #### AnyRouter配置（JSON数组格式）
 1. 浏览器访问 [AnyRouter](https://anyrouter.top) 并登录
