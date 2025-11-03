@@ -320,20 +320,20 @@ class BaiduPan:
         # 4. 获取用户信息
         user, level, value, vip_status = self.get_user_info()
         
-        # 5. 组合结果消息
-        final_msg = f"""🌟 百度网盘签到结果
+        # 5. 组合结果消息（统一模板格式）
+        final_msg = f"""🌐 域名：pan.baidu.com
 
-👤 账号: {user}
-🏆 等级: Lv.{level} ({value}成长值)
-💎 会员: {vip_status}
-
-📝 签到: {signin_msg}"""
+👤 账号{self.index}：
+📱 用户：{user}
+🏆 等级：Lv.{level} ({value}成长值)
+💎 会员：{vip_status}
+📝 签到：{signin_msg}"""
 
         if answer_msg:
-            final_msg += f"\n🤔 答题: {answer_msg}"
+            final_msg += f"\n🤔 答题：{answer_msg}"
 
-        final_msg += f"\n⏰ 时间: {datetime.now().strftime('%m-%d %H:%M')}"
-        
+        final_msg += f"\n⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+
         # 签到或答题任一成功都算成功
         is_success = signin_success or answer_success
         print(f"{'✅ 任务完成' if is_success else '❌ 任务失败'}")
@@ -408,32 +408,25 @@ def main():
             
             # 发送单个账号通知
             status = "成功" if is_success else "失败"
-            title = f"百度网盘账号{index + 1}签到{status}"
+            title = f"[百度网盘]签到{status}"
             notify_user(title, result_msg)
             
         except Exception as e:
             error_msg = f"账号{index + 1}: 执行异常 - {str(e)}"
             print(f"❌ {error_msg}")
-            notify_user(f"百度网盘账号{index + 1}签到失败", error_msg)
+            notify_user("[百度网盘]签到失败", error_msg)
     
     # 发送汇总通知
     if total_count > 1:
-        summary_msg = f"""📊 百度网盘签到汇总
+        summary_msg = f"""🌐 域名：pan.baidu.com
 
-📈 总计: {total_count}个账号
-✅ 成功: {success_count}个
-❌ 失败: {total_count - success_count}个
-📊 成功率: {success_count/total_count*100:.1f}%
-⏰ 完成时间: {datetime.now().strftime('%m-%d %H:%M')}"""
-        
-        # 添加详细结果（最多显示5个账号的详情）
-        if len(results) <= 5:
-            summary_msg += "\n\n📋 详细结果:"
-            for result in results:
-                status_icon = "✅" if result['success'] else "❌"
-                summary_msg += f"\n{status_icon} 账号{result['index']}"
-        
-        notify_user("百度网盘签到汇总", summary_msg)
+📊 签到汇总：
+✅ 成功：{success_count}个
+❌ 失败：{total_count - success_count}个
+📈 成功率：{success_count/total_count*100:.1f}%
+⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+
+        notify_user("[百度网盘]签到汇总", summary_msg)
     
     print(f"\n==== 百度网盘签到完成 - 成功{success_count}/{total_count} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
 
