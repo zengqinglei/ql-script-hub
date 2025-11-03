@@ -95,7 +95,8 @@ class Quark:
             "cookie": self.cookie
         }
         response = requests.get(url=url, headers=headers, params=querystring).json()
-        if response.get("data"):
+        # 检查data是否存在且包含必要字段
+        if response.get("data") and response["data"].get("cap_sign"):
             return response["data"]
         else:
             return False
