@@ -317,20 +317,6 @@ ql-script-hub/
 
 ---
 
-## 📝 配置示例
-
-```bash
-# 通知配置（推荐Telegram）
-TG_BOT_TOKEN=1234567890:AAG9rt-6RDaaX0HBLZQq0laNOh898iFYaRQ
-TG_USER_ID=1434078534
-
-# 随机化配置（可选）
-RANDOM_SIGNIN=true
-MAX_RANDOM_DELAY=3600
-```
-
----
-
 
 ## 🤝 贡献指南
 
