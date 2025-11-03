@@ -294,20 +294,30 @@ if __name__ == "__main__":
             else:
                 print(f"统计查询失败: {stats_msg}")
             
-            # 发送通知
+            # 发送通知（统一格式）
             if hadsend:
                 try:
-                    notification_msg = f"{display_user} 签到成功：{msg}"
+                    notification_msg = f"""🌐 域名：www.nodeseek.com
+
+👤 {display_user}：
+📝 签到：{msg}"""
                     if stats:
-                        notification_msg += f"\n{stats['period']}已签到{stats['days_count']}天，共获得{stats['total_amount']}个鸡腿，平均{stats['average']}个/天"
-                    send("NodeSeek 签到", notification_msg)
+                        notification_msg += f"\n📊 统计：{stats['period']}已签到{stats['days_count']}天，共获得{stats['total_amount']}个鸡腿，平均{stats['average']}个/天"
+                    notification_msg += f"\n⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+
+                    send("[NodeSeek]签到成功", notification_msg)
                 except Exception as e:
                     print(f"发送通知失败: {e}")
         else:
             print(f"{display_user} 签到失败: {msg}")
             if hadsend:
                 try:
-                    send("NodeSeek 签到失败", f"{display_user} 签到失败：{msg}")
+                    notification_msg = f"""🌐 域名：www.nodeseek.com
+
+👤 {display_user}：
+📝 签到：{msg}
+⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+                    send("[NodeSeek]签到失败", notification_msg)
                 except Exception as e:
                     print(f"发送通知失败: {e}")
     
