@@ -249,12 +249,13 @@ class TianYiYunPan:
             # 签到
             sign_result = self.sign_in()
             
-            # 格式化结果
-            result_msg = f"""☁️ 天翼云盘签到结果
+            # 格式化结果（统一模板格式）
+            result_msg = f"""🌐 域名：cloud.189.cn
 
-👤 账号信息: {self.username}
-📊 签到状态: {sign_result}
-🕐 完成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+👤 账号{self.index}：
+📱 用户：{self.username}
+📝 签到：{sign_result}
+⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
 
             print(f"\n🎉 === 最终签到结果 ===")
             print(result_msg)
@@ -289,7 +290,7 @@ def main():
     if not ty_username_env or not ty_password_env:
         error_msg = "❌ 未找到TY_USERNAME或TY_PASSWORD环境变量"
         print(error_msg)
-        notify_user("天翼云盘签到失败", error_msg)
+        notify_user("[天翼云盘]签到失败", error_msg)
         return
     
     # 解析多账号
@@ -299,7 +300,7 @@ def main():
     if len(usernames) != len(passwords):
         error_msg = "❌ 用户名和密码数量不匹配"
         print(error_msg)
-        notify_user("天翼云盘签到失败", error_msg)
+        notify_user("[天翼云盘]签到失败", error_msg)
         return
     
     print(f"📝 共发现 {len(usernames)} 个账号")
@@ -323,27 +324,26 @@ def main():
             if is_success:
                 success_accounts += 1
             
-            # 发送单个账号通知
-            title = f"天翼云盘账号{index + 1}签到{'成功' if is_success else '失败'}"
+            # 发送单个账号通知（统一格式）
+            title = f"[天翼云盘]签到{'成功' if is_success else '失败'}"
             notify_user(title, result_msg)
-            
+
         except Exception as e:
             error_msg = f"❌ 账号{index + 1}: 处理异常 - {str(e)}"
             print(error_msg)
             all_results.append(error_msg)
-            notify_user(f"天翼云盘账号{index + 1}签到失败", error_msg)
-    
-    # 发送汇总通知
+            notify_user("[天翼云盘]签到失败", error_msg)
+
+    # 发送汇总通知（统一格式）
     if len(usernames) > 1:
-        summary_msg = f"""☁️ 天翼云盘签到汇总
+        summary_msg = f"""🌐 域名：cloud.189.cn
 
-📊 总计处理: {len(usernames)}个账号
-✅ 成功账号: {success_accounts}个
-❌ 失败账号: {len(usernames) - success_accounts}个
-📅 执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-详细结果请查看各账号单独通知"""
-        notify_user('天翼云盘签到汇总', summary_msg)
+📊 签到汇总：
+✅ 成功：{success_accounts}个
+❌ 失败：{len(usernames) - success_accounts}个
+📈 成功率：{success_accounts/len(usernames)*100:.1f}%
+⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+        notify_user('[天翼云盘]签到汇总', summary_msg)
         print(f"\n📊 === 汇总统计 ===")
         print(summary_msg)
     
