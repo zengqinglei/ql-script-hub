@@ -127,62 +127,106 @@ class Quark:
         else:
             return False
 
-    def do_sign(self):
-        msg = ""
+    def do_sign(self, index):
+        """执行签到并返回统一格式的通知"""
         # 验证账号
         account_info = self.get_account_info()
         if not account_info:
-            msg = f"\n❌该账号登录失败，cookie无效"
-        else:
-            log = f" 昵称: {account_info['nickname']}"
-            msg += log + "\n"
-            # 每日领空间
-            growth_info = self.get_growth_info()
-            if growth_info:
-                if growth_info["cap_sign"]["sign_daily"]:
-                    log = f"✅ 执行签到: 今日已签到+{int(growth_info['cap_sign']['sign_daily_reward'] / 1024 / 1024)}MB，连签进度({growth_info['cap_sign']['sign_progress']}/{growth_info['cap_sign']['sign_target']})"
-                    msg += log + "\n"
-                else:
-                    sign, sign_return = self.get_growth_sign()
-                    if sign:
-                        log = f"✅ 执行签到: 今日签到+{int(sign_return / 1024 / 1024)}MB，连签进度({growth_info['cap_sign']['sign_progress'] + 1}/{growth_info['cap_sign']['sign_target']})"
-                        msg += log + "\n"
-                    else:
-                        msg += f"✅ 执行签到: {sign_return}\n"
+            return f"账号{index}", "❌ 该账号登录失败，cookie无效", False
 
-        return msg
+        nickname = account_info.get('nickname', f'账号{index}')
+
+        # 每日领空间
+        growth_info = self.get_growth_info()
+        if not growth_info:
+            return nickname, "❌ 获取签到信息失败", False
+
+        # 检查是否已签到
+        if growth_info["cap_sign"]["sign_daily"]:
+            reward_mb = int(growth_info['cap_sign']['sign_daily_reward'] / 1024 / 1024)
+            sign_msg = f"今日已签到，获得 {reward_mb}MB，连签进度 {growth_info['cap_sign']['sign_progress']}/{growth_info['cap_sign']['sign_target']}"
+            return nickname, sign_msg, True
+        else:
+            # 执行签到
+            sign, sign_return = self.get_growth_sign()
+            if sign:
+                reward_mb = int(sign_return / 1024 / 1024)
+                sign_msg = f"签到成功，获得 {reward_mb}MB，连签进度 {growth_info['cap_sign']['sign_progress'] + 1}/{growth_info['cap_sign']['sign_target']}"
+                return nickname, sign_msg, True
+            else:
+                return nickname, f"签到失败：{sign_return}", False
 
 def main():
-    msg = ""
     global QUARK_COOKIE
-    
+
     QUARK_COOKIE = get_env()
 
-    print("✅检测到共", len(QUARK_COOKIE), "个夸克账号\n")
+    print(f"✅ 检测到共 {len(QUARK_COOKIE)} 个夸克账号\n")
 
-    i = 0
-    while i < len(QUARK_COOKIE):
-        # 开始任务
-        log = f"🙍🏻‍♂️ 第{i + 1}个账号"
-        msg += log
-        # 登录
-        log = Quark(QUARK_COOKIE[i]).do_sign()
-        msg += log + "\n"
-        
+    success_count = 0
+    fail_count = 0
+
+    for i, cookie in enumerate(QUARK_COOKIE):
+        print(f"\n==== 账号{i + 1} 开始签到 ====")
+
+        # 执行签到
+        nickname, sign_msg, is_success = Quark(cookie).do_sign(i + 1)
+
+        if is_success:
+            success_count += 1
+            print(f"✅ {nickname}: {sign_msg}")
+        else:
+            fail_count += 1
+            print(f"❌ {nickname}: {sign_msg}")
+
+        # 统一通知格式
+        notify_content = f"""🌐 域名：pan.quark.cn
+
+👤 账号{i + 1}：
+📱 用户：{nickname}
+📝 签到：{sign_msg}
+⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+
+        # 发送单个账号通知
+        status = "成功" if is_success else "失败"
+        if hadsend:
+            try:
+                send(f'[夸克网盘]签到{status}', notify_content)
+                print('✅ 通知推送成功')
+            except Exception as e:
+                print(f'❌ 通知推送失败: {e}')
+        else:
+            print(f'📢 [夸克网盘]签到{status}')
+            print(notify_content)
+
         # 多账号间随机等待
-        if i < len(QUARK_COOKIE) - 1:  # 不是最后一个账号
+        if i < len(QUARK_COOKIE) - 1:
             delay = random.uniform(3, 8)
-            print(f"随机等待 {delay:.1f} 秒后处理下一个账号...")
+            print(f"⏱️  随机等待 {delay:.1f} 秒后处理下一个账号...")
             time.sleep(delay)
 
-        i += 1
+    # 发送汇总通知（仅多账号时）
+    if len(QUARK_COOKIE) > 1:
+        summary = f"""🌐 域名：pan.quark.cn
 
-    print(msg)
-    
-    # 统一推送（只推送一次，包含所有账号结果）
-    Push(contents=msg[:-1])
+📊 签到汇总：
+✅ 成功：{success_count}个
+❌ 失败：{fail_count}个
+📈 成功率：{success_count/len(QUARK_COOKIE)*100:.1f}%
+⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
 
-    return msg[:-1]
+        if hadsend:
+            try:
+                send('[夸克网盘]签到汇总', summary)
+                print('✅ 汇总通知推送成功')
+            except Exception as e:
+                print(f'❌ 汇总通知推送失败: {e}')
+        else:
+            print(f'📢 [夸克网盘]签到汇总')
+            print(summary)
+
+    print(f"\n==== 所有账号签到完成 - 成功{success_count}/{len(QUARK_COOKIE)} ====")
+    return success_count
 
 if __name__ == "__main__":
     print(f"==== 夸克网盘签到开始 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
