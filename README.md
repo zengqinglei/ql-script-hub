@@ -49,6 +49,8 @@ ql-script-hub/
 
 - 青龙面板 2.10+
 - Node.js 14+
+- Python依赖：
+  - **PyExecJS** (anyrouter_checkin.py 脚本依赖，用于处理WAF挑战)
 
 ### 安装步骤
 
@@ -156,16 +158,16 @@ ql-script-hub/
 
 | 变量名 | 说明 | 是否必需 | 示例值 | 备注 |
 |--------|------|----------|--------|------|
-| `LEAFLOW_COOKIE` | leaflow网站Cookie（JSON格式） | **必需** | `{"leaflow_session":"xxx","remember_web_xxx":"yyy","XSRF-TOKEN":"zzz"}` | JSON格式包含3个cookie，多账号用`&`分隔 |
+| `LEAFLOW_COOKIE` | leaflow网站Cookie（JSON格式） | **必需** | `{"leaflow_session":"xxx","remember_web_xxx":"yyy","XSRF-TOKEN":"zzz"}` | JSON格式包含3个cookie，多账号换行分隔 |
 
 #### 🌐 AnyRouter签到配置
 
 | 变量名 | 说明 | 是否必需 | 示例值 | 备注 |
 |--------|------|----------|--------|------|
-| `ANYROUTER_ACCOUNTS` | AnyRouter账号配置（JSON数组格式） | **必需** | 见下方示例 | JSON数组格式，支持多账号 |
-| `ANYROUTER_BASE_URL` | API基础地址 | 可选 | `https://q.quuvv.cn` | 默认`https://anyrouter.top`，DNS污染时可更换 |
-| `ANYROUTER_TIMEOUT` | 请求超时时间（秒） | 可选 | `60` | 默认60秒 |
-| `ANYROUTER_VERIFY_SSL` | SSL证书验证 | 可选 | `false` | 默认`true`，网络问题时可设为`false` |
+| `ANYROUTER_ACCOUNTS` | AnyRouter账号配置（JSON数组格式） | **必需** | `[{"cookies":{"session":"xxx"},"api_user":"123"}]` | JSON数组格式，支持多账号 |
+| `ANYROUTER_BASE_URL` | API基础地址 | 可选 | `https://q.quuvv.cn` | 默认`https://anyrouter.top` |
+| `ANYROUTER_TIMEOUT` | 请求超时时间（秒） | 可选 | `60` | 默认30秒 |
+| `ANYROUTER_VERIFY_SSL` | SSL证书验证 | 可选 | `false` | 默认`true` |
 | `ANYROUTER_MAX_RETRIES` | 最大重试次数 | 可选 | `5` | 默认3次 |
 
 #### 📓 有道云笔记签到配置
@@ -291,7 +293,6 @@ ql-script-hub/
    ```json
    {"leaflow_session":"你的session值","remember_web_59ba36addc2b2f9401580f014c7f58ea4e30989d":"你的remember值","XSRF-TOKEN":"你的token值"}
    ```
-6. 注意：JSON 格式必须使用双引号，且不要有多余的空格或换行
 
 #### 有道云笔记Cookie获取
 1. 浏览器访问 [有道云笔记](https://note.youdao.com/) 并登录
@@ -321,18 +322,12 @@ ql-script-hub/
    ```json
    [{"cookies":{"session":"你的session值","token":"你的token值"},"api_user":"你的api_user值"}]
    ```
-7. 依赖安装：
-   - 脚本依赖 `PyExecJS` 库用于处理 WAF 挑战
-   - 在青龙面板安装方法：
-     ```bash
-     # 依赖管理 → Python3 → 添加 PyExecJS → 安装
-     ```
 
-8. 注意：
-   - 必须使用 JSON 数组格式 `[{}]`
-   - JSON 格式必须使用双引号
-   - 多账号添加多个对象，用逗号分隔
-   - 脚本会自动处理 WAF 挑战，无需手动配置 WAF cookies
+**注意：**
+- 必须使用 JSON 数组格式 `[{}]`
+- JSON 格式必须使用双引号
+- 多账号添加多个对象，用逗号分隔
+- 脚本会自动处理 WAF 挑战，无需手动配置 WAF cookies
 
 #### NGA论坛配置
 1. 安装抓包工具并开启 HTTPS 解密，安装并信任证书 Android：HTTP Canary、HttpToolkit、mitmproxy、Charles; iOS：Stream、Charles
