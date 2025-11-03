@@ -629,7 +629,15 @@ class RUN:
                     one_msg = one_msg[-4000:]
                     one_msg = "...(消息过长，已截取后半部分)\n" + one_msg
                 
-                send(f'顺丰速运账号{self.index}', one_msg.strip())
+                # 添加统一的消息头部
+                formatted_msg = f"""🌐 域名：mcs-mimp-web.sf-express.com
+
+👤 账号{self.index}：
+{one_msg.strip()}
+
+⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+
+                send(f'[顺丰速运]账号{self.index}', formatted_msg)
                 print(f'✅ 账号{self.index}通知发送完成')
             except Exception as e:
                 print(f'❌ 账号{self.index}通知发送失败: {e}')
@@ -678,11 +686,11 @@ if __name__ == '__main__':
                 # 汇总所有账号的结果
                 summary_msg = f"""🚚 顺丰速运签到汇总
 
-📊 总计处理: {len(tokens)}个账号
-📅 执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+📊 总计处理：{len(tokens)}个账号
+📅 执行时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 详细结果请查看各账号单独通知"""
-                send('顺丰速运汇总', summary_msg)
+                send('[顺丰速运]签到汇总', summary_msg)
                 print('✅ 汇总通知发送完成')
             except Exception as e:
                 print(f'❌ 汇总通知发送失败: {e}')
