@@ -173,14 +173,6 @@ ql-script-hub/
 | `ANYROUTER_VERIFY_SSL` | SSL证书验证 | 可选 | `false` | 默认`true` |
 | `ANYROUTER_MAX_RETRIES` | 最大重试次数 | 可选 | `5` | 默认3次 |
 
-**ANYROUTER_ACCOUNTS 多账号配置示例：**
-```json
-[
-  {"cookies": {"session": "account1_session", "token": "account1_token"}, "api_user": "user_id_1"},
-  {"cookies": {"session": "account2_session", "token": "account2_token"}, "api_user": "user_id_2"}
-]
-```
-
 #### 📓 有道云笔记签到配置
 
 | 变量名 | 说明 | 是否必需 | 示例值 | 备注 |
