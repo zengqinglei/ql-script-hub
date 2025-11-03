@@ -173,29 +173,13 @@ ql-script-hub/
 | `ANYROUTER_VERIFY_SSL` | SSL证书验证 | 可选 | `false` | 默认`true` |
 | `ANYROUTER_MAX_RETRIES` | 最大重试次数 | 可选 | `5` | 默认3次 |
 
-**配置示例：**
-```json
-[
-  {
-    "cookies": {"session": "your_session_value", "token": "your_token_value"},
-    "api_user": "your_api_user_id"
-  }
-]
-```
-
-**多账号配置示例：**
+**ANYROUTER_ACCOUNTS 多账号配置示例：**
 ```json
 [
   {"cookies": {"session": "account1_session", "token": "account1_token"}, "api_user": "user_id_1"},
   {"cookies": {"session": "account2_session", "token": "account2_token"}, "api_user": "user_id_2"}
 ]
 ```
-
-**注意：**
-- 必须使用 JSON 数组格式 `[{}]`
-- JSON 格式必须使用双引号
-- 多账号添加多个对象，用逗号分隔
-- 脚本会自动处理 WAF 挑战，无需手动配置 WAF cookies
 
 #### 📓 有道云笔记签到配置
 
