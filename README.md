@@ -161,7 +161,7 @@ ql-script-hub/
 
 | 变量名 | 说明 | 是否必需 | 示例值 | 备注 |
 |--------|------|----------|--------|------|
-| `LEAFLOW_COOKIE` | leaflow网站Cookie（JSON格式） | **必需** | `{"leaflow_session":"xxx","remember_web_xxx":"yyy","XSRF-TOKEN":"zzz"}` | JSON格式包含3个cookie，多账号换行分隔 |
+| `LEAFLOW_COOKIE` | leaflow网站Cookie（JSON数组格式） | **必需** | `[{"cookies":{"leaflow_session":"xxx","remember_web_xxx":"yyy","XSRF-TOKEN":"zzz"}}]` | JSON数组格式，支持多账号 |
 
 #### 🌐 AnyRouter签到配置
 
@@ -257,7 +257,7 @@ ql-script-hub/
 2. 在青龙面板中添加环境变量TY_USERNAME（手机号）
 3. 在青龙面板中添加环境变量TY_PASSWD（对应密码）
 
-#### leaflow配置（JSON格式）
+#### leaflow配置（JSON数组格式）
 1. 浏览器访问 [leaflow](https://leaflow.net/workspaces) 并登录
 2. 按 F12 打开开发者工具 → Application（应用）标签页
 3. 左侧找到 Cookies → https://leaflow.net
@@ -265,9 +265,12 @@ ql-script-hub/
    - `leaflow_session`：会话token（通常以 eyJ 开头）
    - `remember_web_59ba36addc2b2f9401580f014c7f58ea4e30989d`：持久化登录token
    - `XSRF-TOKEN`：CSRF防护token
-5. 组合成 JSON 格式设置到青龙面板环境变量 LEAFLOW_COOKIE：
+5. 将 cookie 字符串转换为 JSON 对象格式：
+   - 字符串格式：`leaflow_session=xxx; remember_web_xxx=yyy; XSRF-TOKEN=zzz`
+   - JSON格式：`{"leaflow_session":"xxx","remember_web_xxx":"yyy","XSRF-TOKEN":"zzz"}`
+6. 组合成 JSON 数组格式设置到青龙面板环境变量 LEAFLOW_COOKIE：
    ```json
-   {"leaflow_session":"你的session值","remember_web_59ba36addc2b2f9401580f014c7f58ea4e30989d":"你的remember值","XSRF-TOKEN":"你的token值"}
+   [{"cookies":{"leaflow_session":"你的session值","remember_web_xxx":"你的remember值","XSRF-TOKEN":"你的token值"}}]
    ```
 
 #### 有道云笔记Cookie获取
