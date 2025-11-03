@@ -161,7 +161,7 @@ ql-script-hub/
 
 | 变量名 | 说明 | 是否必需 | 示例值 | 备注 |
 |--------|------|----------|--------|------|
-| `LEAFLOW_COOKIE` | leaflow网站Cookie（JSON数组格式） | **必需** | `[{"cookies":{"leaflow_session":"xxx","remember_web_xxx":"yyy","XSRF-TOKEN":"zzz"}}]` | JSON数组格式，支持多账号 |
+| `LEAFLOW_COOKIE` | leaflow网站Cookie（JSON数组格式） | **必需** | `[{"leaflow_session":"xxx","remember_web_xxx":"yyy","XSRF-TOKEN":"zzz"}]` | JSON数组格式，支持多账号 |
 
 #### 🌐 AnyRouter签到配置
 
@@ -270,7 +270,7 @@ ql-script-hub/
    - JSON格式：`{"leaflow_session":"xxx","remember_web_xxx":"yyy","XSRF-TOKEN":"zzz"}`
 6. 组合成 JSON 数组格式设置到青龙面板环境变量 LEAFLOW_COOKIE：
    ```json
-   [{"cookies":{"leaflow_session":"你的session值","remember_web_xxx":"你的remember值","XSRF-TOKEN":"你的token值"}}]
+   [{"leaflow_session":"你的session值","remember_web_xxx":"你的remember值","XSRF-TOKEN":"你的token值"}]
    ```
 
 #### 有道云笔记Cookie获取
