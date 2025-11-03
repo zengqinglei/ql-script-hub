@@ -246,20 +246,23 @@ class YouDaoYun:
         # 6. 计算总空间
         total_space = sync_space + checkin_space + ad_space
 
-        # 7. 组合结果消息
-        final_msg = f"""🌟 有道云笔记签到结果
+        # 7. 组合结果消息（统一模板格式）
+        final_msg = f"""🌐 域名：note.youdao.com
 
-👤 账号: {mask_uid(self.uid)}
-📦 空间奖励: +{total_space}M"""
+👤 账号{self.index}：
+📱 用户：{mask_uid(self.uid)}
+📝 签到：签到完成，获得 {total_space}M 空间"""
 
-        if sync_space > 0:
-            final_msg += f"\n  └ 同步推广: {sync_space}M"
-        if checkin_space > 0:
-            final_msg += f"\n  └ 每日签到: {checkin_space}M"
-        if ad_space > 0:
-            final_msg += f"\n  └ 观看广告: {ad_space}M"
+        if sync_space > 0 or checkin_space > 0 or ad_space > 0:
+            final_msg += "\n💾 明细："
+            if sync_space > 0:
+                final_msg += f" 同步推广{sync_space}M"
+            if checkin_space > 0:
+                final_msg += f" 每日签到{checkin_space}M"
+            if ad_space > 0:
+                final_msg += f" 观看广告{ad_space}M"
 
-        final_msg += f"\n⏰ 时间: {datetime.now().strftime('%m-%d %H:%M')}"
+        final_msg += f"\n⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
         is_success = total_space > 0
         print(f"{'✅ 签到成功' if is_success else '⚠️  签到失败'}")
@@ -332,9 +335,9 @@ def main():
                 'message': result_msg
             })
 
-            # 发送单个账号通知
+            # 发送单个账号通知（统一标题格式）
             status = "成功" if is_success else "失败"
-            title = f"有道云笔记账号{index + 1}签到{status}"
+            title = f"[有道云笔记]签到{status}"
             notify_user(title, result_msg)
 
         except Exception as e:
@@ -342,24 +345,17 @@ def main():
             print(f"❌ {error_msg}")
             notify_user(f"有道云笔记账号{index + 1}签到失败", error_msg)
 
-    # 发送汇总通知
+    # 发送汇总通知（统一格式）
     if total_count > 1:
-        summary_msg = f"""📊 有道云笔记签到汇总
+        summary_msg = f"""🌐 域名：note.youdao.com
 
-📈 总计: {total_count}个账号
-✅ 成功: {success_count}个
-❌ 失败: {total_count - success_count}个
-📊 成功率: {success_count/total_count*100:.1f}%
-⏰ 完成时间: {datetime.now().strftime('%m-%d %H:%M')}"""
+📊 签到汇总：
+✅ 成功：{success_count}个
+❌ 失败：{total_count - success_count}个
+📈 成功率：{success_count/total_count*100:.1f}%
+⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
 
-        # 添加详细结果（最多显示5个账号的详情）
-        if len(results) <= 5:
-            summary_msg += "\n\n📋 详细结果:"
-            for result in results:
-                status_icon = "✅" if result['success'] else "❌"
-                summary_msg += f"\n{status_icon} 账号{result['index']}"
-
-        notify_user("有道云笔记签到汇总", summary_msg)
+        notify_user("[有道云笔记]签到汇总", summary_msg)
 
     print(f"\n==== 有道云笔记签到完成 - 成功{success_count}/{total_count} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
 

@@ -512,22 +512,18 @@ def main():
                 if user_info:
                     print(f"💰 {user_info}")
 
-                # 优化后的通知内容（包含域名和奖励）
-                notify_content = f"""🌟 AnyRouter 签到结果
+                # 统一通知格式
+                notify_content = f"""🌐 域名：{BASE_URL.replace('https://', '').replace('http://', '')}
 
-👤 账号: {name}
-🌐 域名: {BASE_URL.replace('https://', '').replace('http://', '')}
-📝 签到: {msg}"""
+👤 {name}：
+📝 签到：{msg}"""
 
                 if user_info:
-                    notify_content += f"\n💰 账户: {user_info}"
+                    notify_content += f"\n💰 账户：{user_info}"
 
-                if reward and reward > 0:
-                    notify_content += f"\n🎁 本次奖励: ${reward:.2f}"
+                notify_content += f"\n⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
-                notify_content += f"\n⏰ 时间: {datetime.now().strftime('%m-%d %H:%M')}"
-
-                safe_send_notify(f"AnyRouter {name}签到成功", notify_content)
+                safe_send_notify("[AnyRouter]签到成功", notify_content)
 
             elif status == "fail":
                 fail_count += 1
@@ -535,52 +531,45 @@ def main():
                 if user_info:
                     print(f"💰 {user_info}")
 
-                # 优化后的通知内容（包含域名）
-                notify_content = f"""⚠️ AnyRouter 签到失败
+                # 统一通知格式
+                notify_content = f"""🌐 域名：{BASE_URL.replace('https://', '').replace('http://', '')}
 
-👤 账号: {name}
-🌐 域名: {BASE_URL.replace('https://', '').replace('http://', '')}
-❌ 原因: {msg}"""
+👤 {name}：
+📝 签到：{msg}"""
 
                 if user_info:
-                    notify_content += f"\n💰 账户: {user_info}"
+                    notify_content += f"\n💰 账户：{user_info}"
 
-                notify_content += f"\n⏰ 时间: {datetime.now().strftime('%m-%d %H:%M')}"
+                notify_content += f"\n⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
-                safe_send_notify(f"AnyRouter {name}签到失败", notify_content)
+                safe_send_notify("[AnyRouter]签到失败", notify_content)
 
             else:  # error
                 error_count += 1
                 print(f"❌ {name} 签到出错: {msg}")
 
-                # 优化后的通知内容（包含域名）
-                notify_content = f"""❌ AnyRouter 签到出错
+                # 统一通知格式
+                notify_content = f"""🌐 域名：{BASE_URL.replace('https://', '').replace('http://', '')}
 
-👤 账号: {name}
-🌐 域名: {BASE_URL.replace('https://', '').replace('http://', '')}
-⚠️ 错误: {msg}
-⏰ 时间: {datetime.now().strftime('%m-%d %H:%M')}
+👤 {name}：
+📝 签到：签到出错 - {msg}
+⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
 
-💡 建议: 请检查配置或稍后重试"""
-
-                safe_send_notify(f"AnyRouter {name}签到出错", notify_content)
+                safe_send_notify("[AnyRouter]签到出错", notify_content)
 
         except Exception as e:
             error_count += 1
             error_msg = f"{e.__class__.__name__}: {str(e)[:50]}"
             print(f"❌ {name} 处理异常: {error_msg}")
 
-            # 优化后的通知内容
-            notify_content = f"""❌ AnyRouter 签到异常
+            # 统一通知格式
+            notify_content = f"""🌐 域名：{BASE_URL.replace('https://', '').replace('http://', '')}
 
-👤 账号: {name}
-🌐 域名: {BASE_URL.replace('https://', '').replace('http://', '')}
-⚠️ 异常: {error_msg}
-⏰ 时间: {datetime.now().strftime('%m-%d %H:%M')}
+👤 {name}：
+📝 签到：签到异常 - {error_msg}
+⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
 
-💡 建议: 请检查配置或联系管理员"""
-
-            safe_send_notify(f"AnyRouter {name}签到异常", notify_content)
+            safe_send_notify("[AnyRouter]签到异常", notify_content)
 
         # 账号间延迟
         if i < len(accounts) - 1:
@@ -592,19 +581,18 @@ def main():
     print(f"  完成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*50}\n")
 
-    # 发送汇总通知（仅多账号时）
+    # 发送汇总通知（仅多账号时，统一格式）
     if len(accounts) > 1:
-        summary = f"""📊 AnyRouter 签到汇总
+        summary = f"""🌐 域名：{BASE_URL.replace('https://', '').replace('http://', '')}
 
-🌐 域名: {BASE_URL.replace('https://', '').replace('http://', '')}
-📈 总计: {len(accounts)}个账号
-✅ 成功: {success_count}个
-⚠️ 失败: {fail_count}个
-❌ 出错: {error_count}个
-📊 成功率: {success_count/len(accounts)*100:.1f}%
-⏰ 完成时间: {datetime.now().strftime('%m-%d %H:%M')}"""
+📊 签到汇总：
+✅ 成功：{success_count}个
+⚠️ 失败：{fail_count}个
+❌ 出错：{error_count}个
+📈 成功率：{success_count/len(accounts)*100:.1f}%
+⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
 
-        safe_send_notify("AnyRouter 签到汇总", summary)
+        safe_send_notify("[AnyRouter]签到汇总", summary)
 
     # 设置退出码
     sys.exit(0 if success_count > 0 else 1)
