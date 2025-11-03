@@ -259,13 +259,14 @@ class NGAUser:
             stats_result = self.get_stats()
             results.append(f"最终资产: {stats_result}")
             
-            # 格式化结果
-            result_msg = f"""🎮 NGA论坛签到结果
+            # 格式化结果（统一模板格式）
+            result_msg = f"""🌐 域名：bbs.nga.cn
 
-👤 账号信息: {self.uid}
-📊 执行结果:
+👤 账号{self.index}：
+📱 用户：{self.uid}
+📊 执行结果：
 {chr(10).join([f'  • {result}' for result in results])}
-🕐 完成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
 
             print(f"\n🎉 === 最终执行结果 ===")
             print(result_msg)
@@ -300,7 +301,7 @@ def main():
     if not credentials_str:
         error_msg = "❌ 未找到NGA_CREDENTIALS环境变量，请配置账号信息"
         print(error_msg)
-        send_notification("NGA论坛签到失败", error_msg)
+        send_notification("[NGA论坛]签到失败", error_msg)
         return
 
     # 解析多账号
@@ -323,7 +324,7 @@ def main():
                 error_msg = f"❌ 账号{i+1}: 凭证格式错误，应为 'UID,AccessToken'"
                 print(error_msg)
                 all_results.append(error_msg)
-                send_notification(f"NGA论坛账号{i+1}签到失败", error_msg)
+                send_notification("[NGA论坛]签到失败", error_msg)
                 continue
             
             uid, accesstoken = account_str.split(',', 1)
@@ -338,27 +339,26 @@ def main():
             if is_success:
                 success_accounts += 1
             
-            # 发送单个账号通知 - 修复通知标题
-            title = f"NGA论坛账号{i+1}签到{'成功' if is_success else '失败'}"
+            # 发送单个账号通知（统一格式）
+            title = f"[NGA论坛]签到{'成功' if is_success else '失败'}"
             send_notification(title, result_msg)
             
         except Exception as e:
             error_msg = f"❌ 账号{i+1}: 处理异常 - {str(e)}"
             print(error_msg)
             all_results.append(error_msg)
-            send_notification(f"NGA论坛账号{i+1}签到失败", error_msg)
-    
-    # 发送汇总通知
+            send_notification("[NGA论坛]签到失败", error_msg)
+
+    # 发送汇总通知（统一格式）
     if len(accounts) > 1:
-        summary_msg = f"""🎮 NGA论坛签到汇总
+        summary_msg = f"""🌐 域名：bbs.nga.cn
 
-📊 总计处理: {len(accounts)}个账号
-✅ 成功账号: {success_accounts}个
-❌ 失败账号: {len(accounts) - success_accounts}个
-📅 执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-详细结果请查看各账号单独通知"""
-        send_notification('NGA论坛签到汇总', summary_msg)
+📊 签到汇总：
+✅ 成功：{success_accounts}个
+❌ 失败：{len(accounts) - success_accounts}个
+📈 成功率：{success_accounts/len(accounts)*100:.1f}%
+⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+        send_notification('[NGA论坛]签到汇总', summary_msg)
         print(f"\n📊 === 汇总统计 ===")
         print(summary_msg)
     
