@@ -562,7 +562,13 @@ def main():
             else:
                 print(f"✅ {name} {msg}")
 
-            safe_send_notify("Leaflow 签到成功", f"{name}：{msg}")
+            # 统一通知格式
+            notify_msg = f"""🌐 域名：{BASE.replace('https://', '').replace('http://', '')}
+
+👤 {name}：
+📝 签到：{msg}
+⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+            safe_send_notify("[Leaflow]签到成功", notify_msg)
 
         elif status == "already":
             already_count += 1
@@ -573,12 +579,25 @@ def main():
                 print(f"ℹ️ {name} 今日已签到")
 
             if NOTIFY_ON_ALREADY:
-                safe_send_notify("Leaflow 签到提醒", f"{name}：{msg}")
+                # 统一通知格式
+                notify_msg = f"""🌐 域名：{BASE.replace('https://', '').replace('http://', '')}
+
+👤 {name}：
+📝 签到：{msg}
+⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+                safe_send_notify("[Leaflow]签到提醒", notify_msg)
 
         else:
             fail_count += 1
             print(f"❌ {name} 签到失败: {msg}")
-            safe_send_notify("Leaflow 签到失败", f"{name}：{status} - {msg}")
+
+            # 统一通知格式
+            notify_msg = f"""🌐 域名：{BASE.replace('https://', '').replace('http://', '')}
+
+👤 {name}：
+📝 签到：{msg}
+⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+            safe_send_notify("[Leaflow]签到失败", notify_msg)
 
         if it["idx"] < len(schedule):
             time.sleep(random.uniform(2, 5))
@@ -594,10 +613,18 @@ def main():
     print(f"{'='*50}\n")
 
     if len(schedule) > 1:
-        summary = f"签到完成\n成功: {success_count} | 已签: {already_count} | 失败: {fail_count}"
+        # 统一汇总格式
+        summary = f"""🌐 域名：{BASE.replace('https://', '').replace('http://', '')}
+
+📊 签到汇总：
+✅ 成功：{success_count}个
+ℹ️ 已签：{already_count}个
+❌ 失败：{fail_count}个
+📈 成功率：{(success_count + already_count)/len(schedule)*100:.1f}%"""
         if total_amount > 0:
-            summary += f"\n今日共获得: {total_amount} 元"
-        safe_send_notify("Leaflow 签到汇总", summary)
+            summary += f"\n💰 今日共获得：{total_amount} 元"
+        summary += f"\n⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        safe_send_notify("[Leaflow]签到汇总", summary)
 
 
 if __name__ == "__main__":

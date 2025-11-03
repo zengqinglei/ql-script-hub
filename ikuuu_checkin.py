@@ -296,15 +296,14 @@ class IkuuuSigner:
         # 3. 执行签到
         checkin_success, checkin_msg = self.checkin()
         
-        # 4. 组合结果消息
-        final_msg = f"""🌟 ikuuu签到结果
+        # 4. 组合结果消息（统一模板）
+        final_msg = f"""🌐 域名：ikuuu.de
 
-👤 账号: {mask_email(self.email)}
-🌐 域名: ikuuu.de
+👤 账号{self.index}：
+📱 用户：{mask_email(self.email)}
+📝 签到：{checkin_msg}
+⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
 
-📝 签到: {checkin_msg}
-⏰ 时间: {datetime.now().strftime('%m-%d %H:%M')}"""
-        
         print(f"{'✅ 任务完成' if checkin_success else '❌ 任务失败'}")
         return final_msg, checkin_success
 
@@ -393,9 +392,9 @@ IKUUU_PASSWD=password1,password2
                 'email': mask_email(email)
             })
             
-            # 发送单个账号通知
+            # 发送单个账号通知（统一标题格式）
             status = "成功" if is_success else "失败"
-            title = f"ikuuu账号{index + 1}签到{status}"
+            title = f"[ikuuu]签到{status}"
             notify_user(title, result_msg)
             
         except Exception as e:
@@ -403,25 +402,17 @@ IKUUU_PASSWD=password1,password2
             print(f"❌ {error_msg}")
             notify_user(f"ikuuu账号{index + 1}签到失败", error_msg)
     
-    # 发送汇总通知
+    # 发送汇总通知（统一格式）
     if total_count > 1:
-        summary_msg = f"""📊 ikuuu签到汇总
+        summary_msg = f"""🌐 域名：ikuuu.de
 
-📈 总计: {total_count}个账号
-✅ 成功: {success_count}个
-❌ 失败: {total_count - success_count}个
-📊 成功率: {success_count/total_count*100:.1f}%
-🌐 域名: ikuuu.de
-⏰ 完成时间: {datetime.now().strftime('%m-%d %H:%M')}"""
-        
-        # 添加详细结果（最多显示5个账号的详情）
-        if len(results) <= 5:
-            summary_msg += "\n\n📋 详细结果:"
-            for result in results:
-                status_icon = "✅" if result['success'] else "❌"
-                summary_msg += f"\n{status_icon} {result['email']}"
-        
-        notify_user("ikuuu签到汇总", summary_msg)
+📊 签到汇总：
+✅ 成功：{success_count}个
+❌ 失败：{total_count - success_count}个
+📈 成功率：{success_count/total_count*100:.1f}%
+⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+
+        notify_user("[ikuuu]签到汇总", summary_msg)
     
     print(f"\n==== ikuuu签到完成 - 成功{success_count}/{total_count} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
 
