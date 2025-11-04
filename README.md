@@ -213,9 +213,26 @@ ql-script-hub/
 3. 找到请求头中的 `Cookie` 完整复制
 
 #### 夸克网盘 Cookie
-1. 浏览器访问 [夸克网盘](https://pan.quark.cn/) 并登录
-2. F12 开发者工具 → Network → 刷新页面  
-3. 找到请求头中的 `Cookie` 完整复制
+1. 使用**手机抓包工具**获取移动端Cookie（推荐 [ProxyPin](https://github.com/wanghongenpin/network_proxy_flutter)）
+2. 打开手机抓包工具，访问夸克网盘签到页
+3. 找到接口 `https://drive-m.quark.cn/1/clouddrive/capacity/growth/info` 的请求信息
+4. 复制请求中的参数：`kps`、`sign` 和 `vcode`
+5. 按以下格式组合Cookie：
+   ```
+   user=张三; kps=abcdefg; sign=hijklmn; vcode=111111111;
+   ```
+   - `user` 字段为用户名，可随意填写（用于日志区分）
+   - `kps`、`sign`、`vcode` 为必需参数，从抓包中获取
+6. 多账号配置：用 `&&` 或回车分隔
+   ```
+   user=账号1; kps=xxx; sign=yyy; vcode=zzz;&&user=账号2; kps=aaa; sign=bbb; vcode=ccc;
+   ```
+
+**注意：**
+- 必须使用**移动端抓包**，PC端Cookie无法使用
+- Cookie有效期约为**12小时**，建议每天更新
+- 必须包含 `kps`、`sign`、`vcode` 三个参数
+- 失效后会返回401错误，需重新抓包获取
 
 #### 顺丰速运 sfsyUrl
 1. 顺丰APP绑定微信后，添加机器人发送"顺丰"
