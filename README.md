@@ -228,12 +228,6 @@ ql-script-hub/
    user=账号1; kps=xxx; sign=yyy; vcode=zzz;&&user=账号2; kps=aaa; sign=bbb; vcode=ccc;
    ```
 
-**注意：**
-- 必须使用**移动端抓包**，PC端Cookie无法使用
-- Cookie有效期约为**12小时**，建议每天更新
-- 必须包含 `kps`、`sign`、`vcode` 三个参数
-- 失效后会返回401错误，需重新抓包获取
-
 #### 顺丰速运 sfsyUrl
 1. 顺丰APP绑定微信后，添加机器人发送"顺丰"
 2. 打开小程序或APP-我的-积分，抓包以下URL之一:
