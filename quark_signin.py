@@ -145,7 +145,7 @@ class Quark:
         missing_params = [p for p in required_params if not self.param.get(p)]
         if missing_params:
             username = self.param.get('user', f'账号{index}')
-            return username, f"❌ Cookie缺少必要参数: {', '.join(missing_params)}。请确保Cookie包含kps、sign、vcode三个参数", False
+            return username, {}, f"❌ Cookie缺少必要参数: {', '.join(missing_params)}。请确保Cookie包含kps、sign、vcode三个参数", False
 
         # 获取用户名
         username = self.param.get('user', f'账号{index}')
@@ -153,7 +153,7 @@ class Quark:
         # 获取签到信息
         growth_info = self.get_growth_info()
         if not growth_info:
-            return username, "❌ 获取签到信息失败，Cookie可能已过期，请重新获取移动端Cookie", False
+            return username, {}, "❌ 获取签到信息失败，Cookie可能已过期，请重新获取移动端Cookie", False
 
         # 获取基本信息
         is_vip = growth_info.get('88VIP', False)
@@ -165,6 +165,13 @@ class Quark:
         if "sign_reward" in growth_info.get('cap_composition', {}):
             sign_reward_capacity = self.convert_bytes(growth_info['cap_composition']['sign_reward'])
 
+        # 构建额外信息字典
+        extra_info = {
+            'vip_status': vip_status,
+            'total_capacity': total_capacity,
+            'sign_reward_capacity': sign_reward_capacity
+        }
+
         # 检查是否已签到
         cap_sign = growth_info.get('cap_sign', {})
         if cap_sign.get("sign_daily"):
@@ -173,7 +180,7 @@ class Quark:
             progress = cap_sign.get('sign_progress', 0)
             target = cap_sign.get('sign_target', 0)
             sign_msg = f"今日已签到，获得 {reward}，连签进度 {progress}/{target}"
-            return username, sign_msg, True
+            return username, extra_info, sign_msg, True
         else:
             # 执行签到
             sign_success, sign_result = self.get_growth_sign()
@@ -182,9 +189,9 @@ class Quark:
                 progress = cap_sign.get('sign_progress', 0) + 1
                 target = cap_sign.get('sign_target', 0)
                 sign_msg = f"签到成功，获得 {reward}，连签进度 {progress}/{target}"
-                return username, sign_msg, True
+                return username, extra_info, sign_msg, True
             else:
-                return username, f"签到失败：{sign_result}", False
+                return username, extra_info, f"签到失败：{sign_result}", False
 
 def main():
     """主函数"""
@@ -199,7 +206,7 @@ def main():
         print(f"\n==== 账号{i + 1} 开始签到 ====")
 
         # 执行签到
-        nickname, sign_msg, is_success = Quark(cookie).do_sign(i + 1)
+        nickname, extra_info, sign_msg, is_success = Quark(cookie).do_sign(i + 1)
 
         if is_success:
             success_count += 1
@@ -212,7 +219,16 @@ def main():
         notify_content = f"""🌐 域名：pan.quark.cn
 
 👤 账号{i + 1}：
-📱 用户：{nickname}
+📱 用户：{nickname}"""
+
+        # 添加额外信息（如果有）
+        if extra_info:
+            notify_content += f"""
+👑 类别：{extra_info.get('vip_status', '未知')}
+💾 总容量：{extra_info.get('total_capacity', '未知')}
+📦 签到累计：{extra_info.get('sign_reward_capacity', '未知')}"""
+
+        notify_content += f"""
 📝 签到：{sign_msg}
 ⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
 
