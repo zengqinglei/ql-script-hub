@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-cron "0 9 * * *" script-path=anyrouter_checkin.py,tag=AnyRouter签到
-new Env('AnyRouter签到')
+cron "0 9 * * *" script-path=agentrouter_checkin.py,tag=AgentRouter签到
+new Env('AgentRouter签到')
 
-AnyRouter.top 自动签到青龙脚本
+AgentRouter 自动签到青龙脚本
 适用于青龙面板定时任务执行
 """
 
@@ -24,7 +24,7 @@ try:
     HAS_EXECJS = True
 except ImportError:
     HAS_EXECJS = False
-    print("未安装 PyExecJS，WAF 挑战可能失败")
+    print("⚠️  未安装 PyExecJS，WAF 挑战可能失败")
     print("   安装方法：pip install PyExecJS")
 
 
@@ -34,20 +34,20 @@ notify_error = None
 try:
     from notify import send
     hadsend = True
-    print("通知模块加载成功")
+    print("✅ 通知模块加载成功")
 except Exception as e:
     notify_error = str(e)
-    print(f"通知模块加载失败: {e}")
+    print(f"⚠️ 通知模块加载失败: {e}")
     def send(title, content):
         pass
 
 
 # ---------------- 配置项 ----------------
-TIMEOUT = int(os.getenv("ANYROUTER_TIMEOUT", "30"))
+TIMEOUT = int(os.getenv("AGENTROUTER_TIMEOUT", "30"))
 DEBUG_MODE = os.getenv("DEBUG_MODE", "false").lower() == "true"
-VERIFY_SSL = os.getenv("ANYROUTER_VERIFY_SSL", "true").lower() == "true"
-MAX_RETRIES = int(os.getenv("ANYROUTER_MAX_RETRIES", "3"))
-BASE_URL = os.getenv("ANYROUTER_BASE_URL", "https://anyrouter.top")  # 支持自定义域名
+VERIFY_SSL = os.getenv("AGENTROUTER_VERIFY_SSL", "true").lower() == "true"
+MAX_RETRIES = int(os.getenv("AGENTROUTER_MAX_RETRIES", "3"))
+BASE_URL = os.getenv("AGENTROUTER_BASE_URL", "https://agentrouter.org")  # 支持自定义域名
 
 # 随机延迟配置
 max_random_delay = int(os.getenv("MAX_RANDOM_DELAY", "3600"))
@@ -76,7 +76,7 @@ def wait_with_countdown(delay_seconds):
     if delay_seconds <= 0:
         return
 
-    print(f"AnyRouter签到需要等待 {format_time_remaining(delay_seconds)}")
+    print(f"AgentRouter签到需要等待 {format_time_remaining(delay_seconds)}")
 
     remaining = delay_seconds
     while remaining > 0:
@@ -107,9 +107,9 @@ def safe_send_notify(title, content):
 
 def load_accounts():
     """从环境变量加载多账号配置"""
-    accounts_str = os.getenv('ANYROUTER_ACCOUNTS')
+    accounts_str = os.getenv('AGENTROUTER_ACCOUNTS')
     if not accounts_str:
-        print('未设置 ANYROUTER_ACCOUNTS 环境变量')
+        print('❌ 未设置 AGENTROUTER_ACCOUNTS 环境变量')
         return None
 
     try:
@@ -550,7 +550,7 @@ def check_in_account(account_info, account_index):
 def main():
     """主函数"""
     print(f"{'='*50}")
-    print(f"  AnyRouter 签到脚本 v1.0")
+    print(f"  AgentRouter 签到脚本 v1.0")
     print(f"  执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     if DEBUG_MODE:
         print(f"  🐛 调试模式: 已启用")
@@ -602,7 +602,7 @@ def main():
 
                 notify_content += f"\n⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
-                safe_send_notify("[AnyRouter]签到成功", notify_content)
+                safe_send_notify("[AgentRouter]签到成功", notify_content)
 
             elif status == "fail":
                 fail_count += 1
@@ -610,7 +610,7 @@ def main():
                 if user_info:
                     print(f"💰 {user_info}")
 
-                # 统一通知格式
+                # 统一通��格式
                 notify_content = f"""🌐 域名：{BASE_URL.replace('https://', '').replace('http://', '')}
 
 👤 {name}：
@@ -621,7 +621,7 @@ def main():
 
                 notify_content += f"\n⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
-                safe_send_notify("[AnyRouter]签到失败", notify_content)
+                safe_send_notify("[AgentRouter]签到失败", notify_content)
 
             else:  # error
                 error_count += 1
@@ -634,7 +634,7 @@ def main():
 📝 签到：签到出错 - {msg}
 ⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
 
-                safe_send_notify("[AnyRouter]签到出错", notify_content)
+                safe_send_notify("[AgentRouter]签到出错", notify_content)
 
         except Exception as e:
             error_count += 1
@@ -648,7 +648,7 @@ def main():
 📝 签到：签到异常 - {error_msg}
 ⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
 
-            safe_send_notify("[AnyRouter]签到异常", notify_content)
+            safe_send_notify("[AgentRouter]签到异常", notify_content)
 
         # 账号间延迟
         if i < len(accounts) - 1:
@@ -671,7 +671,7 @@ def main():
 📈 成功率：{success_count/len(accounts)*100:.1f}%
 ⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
 
-        safe_send_notify("[AnyRouter]签到汇总", summary)
+        safe_send_notify("[AgentRouter]签到汇总", summary)
 
     # 设置退出码
     sys.exit(0 if success_count > 0 else 1)

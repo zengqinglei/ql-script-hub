@@ -27,6 +27,7 @@ ql-script-hub/
 ├── README.md              # 项目说明文档
 ├── LICENSE                # 开源许可证
 ├── aliyunpan_signin.py    # 阿里云盘签到脚本
+├── agentrouter_checkin.py # AgentRouter签到脚本
 ├── anyrouter_checkin.py   # AnyRouter签到脚本
 ├── baidu_signin.py        # 百度网盘签到
 ├── enshan_checkin.py      # 恩山论坛签到脚本
@@ -173,6 +174,16 @@ ql-script-hub/
 | `ANYROUTER_VERIFY_SSL` | SSL证书验证 | 可选 | `false` | 默认`true` |
 | `ANYROUTER_MAX_RETRIES` | 最大重试次数 | 可选 | `5` | 默认3次 |
 
+#### 🌐 AgentRouter签到配置
+
+| 变量名 | 说明 | 是否必需 | 示例值 | 备注 |
+|--------|------|----------|--------|------|
+| `AGENTROUTER_ACCOUNTS` | AgentRouter账号配置（JSON数组格式） | **必需** | `[{"cookies":{"session":"xxx"},"api_user":"123"}]` | JSON数组格式，支持多账号 |
+| `AGENTROUTER_BASE_URL` | API基础地址 | 可选 | `https://agentrouter.org` | 默认`https://agentrouter.org` |
+| `AGENTROUTER_TIMEOUT` | 请求超时时间（秒） | 可选 | `60` | 默认30秒 |
+| `AGENTROUTER_VERIFY_SSL` | SSL证书验证 | 可选 | `false` | 默认`true` |
+| `AGENTROUTER_MAX_RETRIES` | 最大重试次数 | 可选 | `5` | 默认3次 |
+
 #### 📓 有道云笔记签到配置
 
 | 变量名 | 说明 | 是否必需 | 示例值 | 备注 |
@@ -318,6 +329,13 @@ ql-script-hub/
 - JSON 格式必须使用双引号
 - 多账号添加多个对象，用逗号分隔
 - 脚本会自动处理 WAF 挑战，无需手动配置 WAF cookies
+
+#### AgentRouter配置（JSON数组格式）
+配置方式参考上方 **AnyRouter配置**，只需将：
+- 网站地址改为 [AgentRouter](https://agentrouter.org)
+- 环境变量名 `ANYROUTER_ACCOUNTS` 改为 `AGENTROUTER_ACCOUNTS`
+
+注意：两个脚本的配置格式和功能完全相同。
 
 #### NGA论坛配置
 1. 安装抓包工具并开启 HTTPS 解密，安装并信任证书 Android：HTTP Canary、HttpToolkit、mitmproxy、Charles; iOS：Stream、Charles
