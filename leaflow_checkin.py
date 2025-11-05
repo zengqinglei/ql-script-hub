@@ -39,6 +39,7 @@ except Exception as e:
         pass
 
 # ---------------- 配置项 ----------------
+LEAFLOW_DOMAIN = os.getenv("LEAFLOW_DOMAIN", "https://leaflow.net").rstrip("/")
 BASE = os.getenv("LEAFLOW_BASE", "https://checkin.leaflow.net").rstrip("/")
 TIMEOUT = int(os.getenv("TIMEOUT", "60"))
 RETRY_TIMES = int(os.getenv("RETRY_TIMES", "3"))
@@ -47,6 +48,7 @@ RANDOM_SIGNIN = os.getenv("RANDOM_SIGNIN", "true").lower() == "true"
 MAX_RANDOM_DELAY = int(os.getenv("MAX_RANDOM_DELAY", "3600"))
 NOTIFY_ON_ALREADY = os.getenv("NOTIFY_ON_ALREADY", "true").lower() == "true"  # 已签到是否通知
 DEBUG_MODE = os.getenv("DEBUG_MODE", "false").lower() == "true"  # 🆕 调试模式
+PRIVACY_MODE = os.getenv("PRIVACY_MODE", "true").lower() == "true"  # 隐私保护模式
 
 HTTP_PROXY = os.getenv("HTTP_PROXY") or os.getenv("http_proxy")
 HTTPS_PROXY = os.getenv("HTTPS_PROXY") or os.getenv("https_proxy")
@@ -236,11 +238,10 @@ def test_authentication(session, account_name: str) -> tuple[bool, str]:
             kwargs["impersonate"] = "chrome120"
 
         # 测试多个URL（参考参考脚本的逻辑）
-        main_site = "https://leaflow.net"
         test_urls = [
-            f"{main_site}/dashboard",
-            f"{main_site}/profile",
-            f"{main_site}/user",
+            f"{LEAFLOW_DOMAIN}/dashboard",
+            f"{LEAFLOW_DOMAIN}/profile",
+            f"{LEAFLOW_DOMAIN}/user",
             BASE,  # 签到页面
         ]
 
@@ -279,6 +280,92 @@ def test_authentication(session, account_name: str) -> tuple[bool, str]:
         return False, f"连接失败: {str(e)[:80]}"
     except Exception as e:
         return False, f"认证测试异常: {str(e)[:80]}"
+
+def get_user_balance_info(session) -> tuple[dict, str]:
+    """
+    获取用户余额和账户信息 - 通过API接口
+    """
+    try:
+        kwargs = {"timeout": TIMEOUT, "allow_redirects": False}
+        if USE_CURL_CFFI:
+            kwargs["impersonate"] = "chrome120"
+
+        # 设置最小必要的API请求headers
+        api_headers = {
+            'X-Inertia-Version': '98497d2ccb64ae33c0053ceb4d917dfc',
+            'X-Inertia': 'true',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'text/html, application/xhtml+xml'
+        }
+
+        # 从session的cookies中获取XSRF-TOKEN
+        xsrf_token = session.cookies.get('XSRF-TOKEN')
+        if xsrf_token:
+            api_headers['X-XSRF-TOKEN'] = xsrf_token
+
+        # 设置Referer
+        api_headers['Referer'] = f'{LEAFLOW_DOMAIN}/dashboard'
+
+        # 更新session的headers
+        session.headers.update(api_headers)
+
+        # 访问余额API接口
+        balance_url = f"{LEAFLOW_DOMAIN}/balance"
+        r = session.get(balance_url, **kwargs)
+
+        if DEBUG_MODE:
+            print(f"  [DEBUG] 余额API状态码: {r.status_code}")
+            print(f"  [DEBUG] 响应内容类型: {r.headers.get('content-type', 'unknown')}")
+
+        if r.status_code != 200:
+            return {}, f"余额API访问失败: {r.status_code}"
+
+        # 检查响应内容类型
+        content_type = r.headers.get('content-type', '').lower()
+        if 'application/json' in content_type:
+            # 直接是JSON响应
+            try:
+                data = r.json()
+                if DEBUG_MODE:
+                    print(f"  [DEBUG] 直接获得JSON响应")
+            except json.JSONDecodeError as e:
+                return {}, f"JSON解析失败: {str(e)}"
+        else:
+            return {}, f"API返回非JSON响应，content-type: {content_type}"
+
+        # 提取用户信息
+        auth_data = data.get("props", {}).get("auth", {})
+        user_data = auth_data.get("user", {})
+
+        if not user_data:
+            return {}, "JSON中未找到用户信息"
+
+        user_info = {
+            "username": user_data.get("name", "未知用户"),
+            "email": user_data.get("email", ""),
+            "current_balance": float(user_data.get("current_balance", 0)),
+            "total_consumed": float(user_data.get("total_consumed", 0))
+        }
+
+        # 隐私处理
+        if PRIVACY_MODE:
+            if user_info["username"] and len(user_info["username"]) > 2:
+                user_info["username"] = f"{user_info['username'][0]}***{user_info['username'][-1]}"
+            if user_info["email"] and "@" in user_info["email"]:
+                local, domain = user_info["email"].split("@", 1)
+                if len(local) > 2:
+                    user_info["email"] = f"{local[:2]}***@{domain}"
+                else:
+                    user_info["email"] = f"***@{domain}"
+
+        return user_info, "获取账户信息成功"
+
+    except requests.exceptions.Timeout:
+        return {}, f"获取账户信息超时（{TIMEOUT}秒）"
+    except requests.exceptions.ConnectionError as e:
+        return {}, f"获取账户信息连接失败: {str(e)[:80]}"
+    except Exception as e:
+        return {}, f"获取账户信息异常: {str(e)[:100]}"
 
 def parse_result(html: str) -> tuple[str, str, float]:
     if not html:
@@ -388,24 +475,34 @@ def sign_once_impl(session) -> tuple[str, str, float]:
     except Exception as e:
         return "error", f"{e.__class__.__name__}: {str(e)[:100]}", 0
 
-def sign_with_retry(account_config, name: str) -> tuple[str, str, float]:
+def sign_with_retry(account_config, name: str) -> tuple[str, str, float, dict]:
     """
-    带认证测试和重试的签到
+    带认证测试和重试的签到，返回账户信息
     """
     # 构建 session（包含多个 cookie）
     try:
         session = build_session(account_config)
     except ValueError as e:
-        return "error", f"Cookie 配置错误: {str(e)}", 0
+        return "error", f"Cookie 配置错误: {str(e)}", 0, {}
 
     # 先测试认证
     print(f"  🔐 验证 Cookie 有效性...")
     auth_valid, auth_msg = test_authentication(session, name)
 
     if not auth_valid:
-        return "invalid", f"Cookie 验证失败: {auth_msg}", 0
+        return "invalid", f"Cookie 验证失败: {auth_msg}", 0, {}
 
     print(f"  ✅ Cookie 验证通过")
+
+    # 获取账户信息
+    print(f"  📊 获取账户信息...")
+    user_info, info_msg = get_user_balance_info(session)
+    if user_info:
+        print(f"  👤 用户: {user_info['username']}")
+        print(f"  💰 余额: {user_info['current_balance']:.2f}元")
+        print(f"  💸 累计消费: {user_info['total_consumed']:.2f}元")
+    else:
+        print(f"  ⚠️ 获取账户信息失败: {info_msg}")
 
     # 执行签到（带重试）
     for attempt in range(1, RETRY_TIMES + 1):
@@ -416,12 +513,12 @@ def sign_with_retry(account_config, name: str) -> tuple[str, str, float]:
         status, msg, amount = sign_once_impl(session)
 
         if status in ("success", "already", "invalid"):
-            return status, msg, amount
+            return status, msg, amount, user_info
 
         if attempt < RETRY_TIMES:
             print(f"  ⚠️ {msg}，{RETRY_DELAY}秒后重试...")
 
-    return status, f"{msg}（重试 {RETRY_TIMES} 次后失败）", 0
+    return status, f"{msg}（重试 {RETRY_TIMES} 次后失败）", 0, user_info
 
 def format_time_remaining(seconds: int) -> str:
     if seconds <= 0:
@@ -464,10 +561,11 @@ def safe_send_notify(title, content):
 
 def main():
     print(f"{'='*50}")
-    print(f"  Leaflow 签到脚本 v3.1（配置格式优化版）")
+    print(f"  Leaflow 签到脚本 v3.2（账户信息增强版）")
     print(f"  更新时间: {datetime.now().strftime('%Y-%m-%d')}")
-    print(f"  更新内容: 采用 JSON 数组格式配置")
+    print(f"  更新内容: 新增账户余额和用户信息显示")
     print(f"  Cookie 格式: JSON 数组 [{{\"leaflow_session\":\"xxx\",...}}]")
+    print(f"  隐私模式: {'已启用' if PRIVACY_MODE else '已禁用'}")
     if DEBUG_MODE:
         print(f"  🐛 调试模式: 已启用")
     print(f"{'='*50}\n")
@@ -551,7 +649,7 @@ def main():
         print(f"\n==== {name} 开始签到 ====")
         print(f"当前时间: {datetime.now().strftime('%H:%M:%S')}")
 
-        status, msg, amount = sign_with_retry(it["account"], name)
+        status, msg, amount, user_info = sign_with_retry(it["account"], name)
 
         if status == "success":
             success_count += 1
@@ -562,10 +660,26 @@ def main():
             else:
                 print(f"✅ {name} {msg}")
 
-            # 统一通知格式
-            notify_msg = f"""🌐 域名：{BASE.replace('https://', '').replace('http://', '')}
+            # 统一通知格式（整合账户信息）
+            notify_msg = f"""🌐 域名：{LEAFLOW_DOMAIN.replace('https://', '').replace('http://', '')}
 
-👤 {name}：
+👤 {name}："""
+
+            # 添加整合的账户信息
+            if user_info:
+                # 账户信息：用户（邮箱）
+                account_info = user_info.get('username', '未知用户')
+                if user_info.get('email') and user_info.get('email') != '***@***.***':
+                    account_info += f"（{user_info['email']}）"
+                notify_msg += f"\n👤 账户：{account_info}"
+
+                # 财务信息：余额，累计消费
+                balance_info = f"余额 {user_info.get('current_balance', 0):.2f}元"
+                if user_info.get('total_consumed', 0) > 0:
+                    balance_info += f"，累计消费 {user_info.get('total_consumed', 0):.2f}元"
+                notify_msg += f"\n💰 财务：{balance_info}"
+
+            notify_msg += f"""
 📝 签到：{msg}
 ⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
             safe_send_notify("[Leaflow]签到成功", notify_msg)
@@ -579,10 +693,26 @@ def main():
                 print(f"ℹ️ {name} 今日已签到")
 
             if NOTIFY_ON_ALREADY:
-                # 统一通知格式
-                notify_msg = f"""🌐 域名：{BASE.replace('https://', '').replace('http://', '')}
+                # 统一通知格式（整合账户信息）
+                notify_msg = f"""🌐 域名：{LEAFLOW_DOMAIN.replace('https://', '').replace('http://', '')}
 
-👤 {name}：
+👤 {name}："""
+
+                # 添加整合的账户信息
+                if user_info:
+                    # 账户信息：用户（邮箱）
+                    account_info = user_info.get('username', '未知用户')
+                    if user_info.get('email') and user_info.get('email') != '***@***.***':
+                        account_info += f"（{user_info['email']}）"
+                    notify_msg += f"\n👤 账户：{account_info}"
+
+                    # 财务信息：余额，累计消费
+                    balance_info = f"余额 {user_info.get('current_balance', 0):.2f}元"
+                    if user_info.get('total_consumed', 0) > 0:
+                        balance_info += f"，累计消费 {user_info.get('total_consumed', 0):.2f}元"
+                    notify_msg += f"\n💰 财务：{balance_info}"
+
+                notify_msg += f"""
 📝 签到：{msg}
 ⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
                 safe_send_notify("[Leaflow]签到提醒", notify_msg)
@@ -591,10 +721,26 @@ def main():
             fail_count += 1
             print(f"❌ {name} 签到失败: {msg}")
 
-            # 统一通知格式
-            notify_msg = f"""🌐 域名：{BASE.replace('https://', '').replace('http://', '')}
+            # 统一通知格式（包含账户信息）
+            notify_msg = f"""🌐 域名：{LEAFLOW_DOMAIN.replace('https://', '').replace('http://', '')}
 
-👤 {name}：
+👤 {name}："""
+
+            # 添加整合的账户信息（即使失败也显示）
+            if user_info:
+                # 账户信息：用户（邮箱）
+                account_info = user_info.get('username', '未知用户')
+                if user_info.get('email') and user_info.get('email') != '***@***.***':
+                    account_info += f"（{user_info['email']}）"
+                notify_msg += f"\n👤 账户：{account_info}"
+
+                # 财务信息：余额，累计消费
+                balance_info = f"余额 {user_info.get('current_balance', 0):.2f}元"
+                if user_info.get('total_consumed', 0) > 0:
+                    balance_info += f"，累计消费 {user_info.get('total_consumed', 0):.2f}元"
+                notify_msg += f"\n💰 财务：{balance_info}"
+
+            notify_msg += f"""
 📝 签到：{msg}
 ⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
             safe_send_notify("[Leaflow]签到失败", notify_msg)
@@ -614,7 +760,7 @@ def main():
 
     if len(schedule) > 1:
         # 统一汇总格式
-        summary = f"""🌐 域名：{BASE.replace('https://', '').replace('http://', '')}
+        summary = f"""🌐 域名：{LEAFLOW_DOMAIN.replace('https://', '').replace('http://', '')}
 
 📊 签到汇总：
 ✅ 成功：{success_count}个
