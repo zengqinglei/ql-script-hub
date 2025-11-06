@@ -30,6 +30,7 @@ except ImportError:
     print("⚠️  未加载通知模块，跳过通知功能")
 
 # 配置项
+YOUDAO_DOMAIN = os.getenv("YOUDAO_DOMAIN", "https://note.youdao.com").rstrip("/")
 YOUDAO_COOKIE = os.environ.get('YOUDAO_COOKIE', '')
 max_random_delay = int(os.getenv("MAX_RANDOM_DELAY", "3600"))
 random_signin = os.getenv("RANDOM_SIGNIN", "true").lower() == "true"
@@ -116,7 +117,7 @@ class YouDaoYun:
         try:
             print("🔄 正在刷新cookies...")
             response = requests.get(
-                "http://note.youdao.com/login/acc/pe/getsess?product=YNOTE",
+                f"{YOUDAO_DOMAIN}/login/acc/pe/getsess?product=YNOTE",
                 cookies=self.cookies_dict,
                 timeout=15
             )
@@ -133,11 +134,74 @@ class YouDaoYun:
             print(f"❌ Cookies刷新异常: {e}")
             return False
 
+    def get_user_space_info(self):
+        """获取用户存储空间信息"""
+        try:
+            print("📊 正在获取存储空间信息...")
+            url = f"{YOUDAO_DOMAIN}/yws/mapi/payment?method=status&pversion=v2"
+
+            cstk = self.cookies_dict.get('YNOTE_CSTK', '')
+            headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json, text/plain, */*'
+            }
+            data = {"cstk": cstk}
+
+            response = requests.post(
+                url=url,
+                json=data,
+                cookies=self.cookies_dict,
+                headers=headers,
+                timeout=15
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+
+                if "um" in result:
+                    um = result["um"]
+                    total_size = um.get("q", 0)  # 总容量（字节）
+                    used_size = um.get("u", 0)   # 已用空间（字节）
+
+                    # 转换为可读格式
+                    def format_size(size_bytes):
+                        """将字节转换为可读格式"""
+                        if size_bytes >= 1073741824:  # >= 1GB
+                            return f"{size_bytes / 1073741824:.2f}GB"
+                        elif size_bytes >= 1048576:  # >= 1MB
+                            return f"{size_bytes / 1048576:.2f}MB"
+                        else:
+                            return f"{size_bytes / 1024:.2f}KB"
+
+                    space_info = {
+                        "total_size": total_size,
+                        "used_size": used_size,
+                        "total_formatted": format_size(total_size),
+                        "used_formatted": format_size(used_size),
+                        "free_formatted": format_size(total_size - used_size)
+                    }
+
+                    print(f"✅ 存储空间信息获取成功")
+                    print(f"   总容量: {space_info['total_formatted']}")
+                    print(f"   已使用: {space_info['used_formatted']}")
+                    print(f"   剩余: {space_info['free_formatted']}")
+
+                    return space_info
+                else:
+                    print(f"⚠️ 响应中未找到空间信息")
+                    return {}
+            else:
+                print(f"⚠️ 获取存储空间信息失败，状态码: {response.status_code}")
+                return {}
+        except Exception as e:
+            print(f"❌ 获取存储空间信息异常: {e}")
+            return {}
+
     def sync_promotion(self):
         """同步推广空间"""
         try:
             print("📝 正在同步推广...")
-            url = "https://note.youdao.com/yws/api/daupromotion?method=sync"
+            url = f"{YOUDAO_DOMAIN}/yws/api/daupromotion?method=sync"
             response = requests.post(url=url, cookies=self.cookies_dict, timeout=15)
 
             if response.status_code == 200:
@@ -161,7 +225,7 @@ class YouDaoYun:
         """每日签到"""
         try:
             print("📝 正在执行每日签到...")
-            url = "https://note.youdao.com/yws/mapi/user?method=checkin"
+            url = f"{YOUDAO_DOMAIN}/yws/mapi/user?method=checkin"
             response = requests.post(url=url, cookies=self.cookies_dict, timeout=15)
 
             if response.status_code == 200:
@@ -181,7 +245,7 @@ class YouDaoYun:
         total_ad_space = 0
         try:
             print(f"📺 正在观看广告（共{count}次）...")
-            url = "https://note.youdao.com/yws/mapi/user?method=adRandomPrompt"
+            url = f"{YOUDAO_DOMAIN}/yws/mapi/user?method=adRandomPrompt"
 
             for i in range(count):
                 response = requests.post(url=url, cookies=self.cookies_dict, timeout=15)
@@ -234,27 +298,38 @@ class YouDaoYun:
         if not self.refresh_cookies():
             return "Cookies刷新失败，请更新Cookie", False
 
-        # 3. 同步推广空间
+        # 3. 获取用户存储空间信息
+        space_info = self.get_user_space_info()
+
+        # 4. 同步推广空间
         sync_space = self.sync_promotion()
 
-        # 4. 每日签到
+        # 5. 每日签到
         checkin_space = self.daily_checkin()
 
-        # 5. 观看广告
+        # 6. 观看广告
         ad_space = self.watch_ads(count=3)
 
-        # 6. 计算总空间
+        # 7. 计算总空间
         total_space = sync_space + checkin_space + ad_space
 
-        # 7. 组合结果消息（统一模板格式）
-        final_msg = f"""🌐 域名：note.youdao.com
+        # 8. 组合结果消息（统一模板格式）
+        domain_display = YOUDAO_DOMAIN.replace('https://', '').replace('http://', '')
+        final_msg = f"""🌐 域名：{domain_display}
 
 👤 账号{self.index}：
-📱 用户：{mask_uid(self.uid)}
+📱 用户：{mask_uid(self.uid)}"""
+
+        # 添加存储空间信息
+        if space_info:
+            final_msg += f"""
+💾 空间：总容量 {space_info['total_formatted']}，已使用 {space_info['used_formatted']}"""
+
+        final_msg += f"""
 📝 签到：签到完成，获得 {total_space}M 空间"""
 
         if sync_space > 0 or checkin_space > 0 or ad_space > 0:
-            final_msg += "\n💾 明细："
+            final_msg += "\n💡 明细："
             if sync_space > 0:
                 final_msg += f" 同步推广{sync_space}M"
             if checkin_space > 0:
@@ -347,7 +422,8 @@ def main():
 
     # 发送汇总通知（统一格式）
     if total_count > 1:
-        summary_msg = f"""🌐 域名：note.youdao.com
+        domain_display = YOUDAO_DOMAIN.replace('https://', '').replace('http://', '')
+        summary_msg = f"""🌐 域名：{domain_display}
 
 📊 签到汇总：
 ✅ 成功：{success_count}个
