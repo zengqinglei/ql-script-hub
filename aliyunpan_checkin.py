@@ -7,6 +7,13 @@ new Env('阿里云盘签到')
 
 import json
 import os
+import sys
+import io
+
+# 设置标准输出编码为UTF-8（解决Windows环境emoji显示问题）
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
 import requests
 import urllib3
 import random
@@ -567,12 +574,12 @@ class AliYun:
         """获取存储空间信息"""
         try:
             print("💾 正在获取存储空间信息...")
-            url = "https://api.aliyundrive.com/v2/user/get"
+            url = "https://api.aliyundrive.com/v2/databox/get_personal_info"
             headers = {
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json"
             }
-            
+
             response = requests.post(url=url, headers=headers, json={}, timeout=15)
             if response.status_code == 200:
                 result = response.json()
