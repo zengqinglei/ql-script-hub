@@ -226,6 +226,45 @@ class BaiduPan:
             self.add_message(f"❌ {error_msg}")
             return False, error_msg
 
+    def get_storage_info(self):
+        """获取存储空间信息"""
+        if not self.cookie.strip():
+            return None
+
+        print("💾 正在获取存储空间信息...")
+        url = "https://pan.baidu.com/api/quota?clienttype=0&app_id=250528&web=1"
+        signed_headers = HEADERS.copy()
+        signed_headers['Cookie'] = self.cookie
+
+        try:
+            resp = requests.get(url, headers=signed_headers, timeout=15)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get('errno') == 0:
+                    total_bytes = data.get('total', 0)
+                    used_bytes = data.get('used', 0)
+
+                    # 转换为GB
+                    total_gb = round(total_bytes / (1024**3), 2)
+                    used_gb = round(used_bytes / (1024**3), 2)
+
+                    if total_gb > 0:
+                        usage_percent = round((used_gb / total_gb) * 100, 1)
+                        print(f"💾 存储空间: {used_gb}GB / {total_gb}GB ({usage_percent}%)")
+                        return {
+                            'used_gb': used_gb,
+                            'total_gb': total_gb,
+                            'usage_percent': usage_percent
+                        }
+                else:
+                    print(f"⚠️ 获取存储信息失败，errno: {data.get('errno')}")
+            else:
+                print(f"⚠️ 获取存储信息失败，状态码: {resp.status_code}")
+        except Exception as e:
+            print(f"⚠️ 存储信息请求异常: {e}")
+
+        return None
+
     def get_user_info(self):
         """获取用户信息"""
         if not self.cookie.strip():
@@ -235,7 +274,7 @@ class BaiduPan:
         url = "https://pan.baidu.com/rest/2.0/membership/user?app_id=250528&web=5&method=query"
         signed_headers = HEADERS.copy()
         signed_headers['Cookie'] = self.cookie
-        
+
         try:
             resp = requests.get(url, headers=signed_headers, timeout=15)
             if resp.status_code == 200:
@@ -247,7 +286,7 @@ class BaiduPan:
                 level = current_level.group(1) if current_level else "未知"
                 value = current_value.group(1) if current_value else "未知"
                 user = username.group(1) if username else "未知用户"
-                
+
                 # VIP类型解析
                 vip_status = "普通用户"
                 if vip_type:
@@ -268,7 +307,7 @@ class BaiduPan:
 
                 level_msg = f"当前会员等级: Lv.{level}，成长值: {value}，会员类型: {vip_status}"
                 self.add_message(level_msg)
-                
+
                 print(f"👤 用户: {user}")
                 print(f"🏆 等级: Lv.{level}")
                 print(f"📊 成长值: {value}")
@@ -316,18 +355,25 @@ class BaiduPan:
         answer, ask_id = self.get_daily_question()
         if answer and ask_id:
             answer_success, answer_msg = self.answer_question(answer, ask_id)
-        
+
         # 4. 获取用户信息
         user, level, value, vip_status = self.get_user_info()
-        
-        # 5. 组合结果消息（统一模板格式）
+
+        # 5. 获取存储空间信息
+        storage_info = self.get_storage_info()
+
+        # 6. 组合结果消息（统一模板格式）
         final_msg = f"""🌐 域名：pan.baidu.com
 
 👤 账号{self.index}：
 📱 用户：{user}
 🏆 等级：Lv.{level} ({value}成长值)
-💎 会员：{vip_status}
-📝 签到：{signin_msg}"""
+💎 会员：{vip_status}"""
+
+        if storage_info:
+            final_msg += f"\n💾 存储：{storage_info['used_gb']}GB / {storage_info['total_gb']}GB ({storage_info['usage_percent']}%)"
+
+        final_msg += f"\n📝 签到：{signin_msg}"
 
         if answer_msg:
             final_msg += f"\n🤔 答题：{answer_msg}"
