@@ -188,6 +188,16 @@ class Quark:
                 reward = self.convert_bytes(sign_result)
                 progress = cap_sign.get('sign_progress', 0) + 1
                 target = cap_sign.get('sign_target', 0)
+
+                # 签到成功后手动更新累计容量（避免重复API调用）
+                if "sign_reward" in growth_info.get('cap_composition', {}):
+                    original_bytes = growth_info['cap_composition']['sign_reward']
+                    # 将今日获得的容量加到累计容量中
+                    growth_info['cap_composition']['sign_reward'] = original_bytes + sign_result
+                    sign_reward_capacity = self.convert_bytes(growth_info['cap_composition']['sign_reward'])
+                    # 更新extra_info中的累计容量
+                    extra_info['sign_reward_capacity'] = sign_reward_capacity
+
                 sign_msg = f"签到成功，获得 {reward}，连签进度 {progress}/{target}"
                 return username, extra_info, sign_msg, True
             else:
