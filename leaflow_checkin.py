@@ -382,7 +382,7 @@ def parse_result(html: str) -> tuple[str, str, float]:
     for pattern in already_patterns:
         if re.search(pattern, html, re.I):
             if amount > 0:
-                return "already", f"今日已签到（今日获得 {amount} 元）", amount
+                return "already", f"今日已签到，获得 {amount} 元", amount
             return "already", "今日已签到", 0
     success_patterns = [
         r'签到成功',
@@ -665,19 +665,19 @@ def main():
 
 👤 {name}："""
 
-            # 添加整合的账户信息
+            # 添加整合的用户信息
             if user_info:
-                # 账户信息：用户（邮箱）
+                # 用户信息：用户（邮箱）
                 account_info = user_info.get('username', '未知用户')
                 if user_info.get('email') and user_info.get('email') != '***@***.***':
                     account_info += f"（{user_info['email']}）"
-                notify_msg += f"\n👤 账户：{account_info}"
+                notify_msg += f"\n👤 用户：{account_info}"
 
-                # 财务信息：余额，累计消费
+                # 账户信息：余额，累计消费
                 balance_info = f"余额 {user_info.get('current_balance', 0):.2f}元"
                 if user_info.get('total_consumed', 0) > 0:
                     balance_info += f"，累计消费 {user_info.get('total_consumed', 0):.2f}元"
-                notify_msg += f"\n💰 财务：{balance_info}"
+                notify_msg += f"\n💰 账户：{balance_info}"
 
             notify_msg += f"""
 📝 签到：{msg}
@@ -698,19 +698,19 @@ def main():
 
 👤 {name}："""
 
-                # 添加整合的账户信息
+                # 添加整合的用户信息
                 if user_info:
-                    # 账户信息：用户（邮箱）
+                    # 用户信息：用户（邮箱）
                     account_info = user_info.get('username', '未知用户')
                     if user_info.get('email') and user_info.get('email') != '***@***.***':
                         account_info += f"（{user_info['email']}）"
-                    notify_msg += f"\n👤 账户：{account_info}"
+                    notify_msg += f"\n👤 用户：{account_info}"
 
-                    # 财务信息：余额，累计消费
+                    # 账户信息：余额，累计消费
                     balance_info = f"余额 {user_info.get('current_balance', 0):.2f}元"
                     if user_info.get('total_consumed', 0) > 0:
                         balance_info += f"，累计消费 {user_info.get('total_consumed', 0):.2f}元"
-                    notify_msg += f"\n💰 财务：{balance_info}"
+                    notify_msg += f"\n💰 账户：{balance_info}"
 
                 notify_msg += f"""
 📝 签到：{msg}
@@ -726,19 +726,19 @@ def main():
 
 👤 {name}："""
 
-            # 添加整合的账户信息（即使失败也显示）
+            # 添加整合的用户信息（即使失败也显示）
             if user_info:
-                # 账户信息：用户（邮箱）
+                # 用户信息：用户（邮箱）
                 account_info = user_info.get('username', '未知用户')
                 if user_info.get('email') and user_info.get('email') != '***@***.***':
                     account_info += f"（{user_info['email']}）"
-                notify_msg += f"\n👤 账户：{account_info}"
+                notify_msg += f"\n👤 用户：{account_info}"
 
-                # 财务信息：余额，累计消费
+                # 账户信息：余额，累计消费
                 balance_info = f"余额 {user_info.get('current_balance', 0):.2f}元"
                 if user_info.get('total_consumed', 0) > 0:
                     balance_info += f"，累计消费 {user_info.get('total_consumed', 0):.2f}元"
-                notify_msg += f"\n💰 财务：{balance_info}"
+                notify_msg += f"\n💰 账户：{balance_info}"
 
             notify_msg += f"""
 📝 签到：{msg}
