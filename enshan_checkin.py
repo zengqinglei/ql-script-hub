@@ -365,17 +365,17 @@ class EnShanSigner:
                 # 如果积分计算失败，使用原始签到结果
                 print("🔄 使用原始签到结果")
         
-        # 6. 组合结果消息
-        final_msg = f"""🌟 恩山论坛签到结果
+        # 6. 组合结果消息（统一模板格式）
+        final_msg = f"""🌐 域名：www.right.com.cn
 
-👤 用户: {mask_username(self.user_name)}
-🏅 等级: {self.user_group}
-💰 恩山币: {self.coin_before} → {self.coin_after or self.coin_before}
-📊 积分: {self.point_before} → {self.point_after or self.point_before}
-🎯 贡献: {self.contribution} 分{gain_info}
-
-📝 签到: {signin_msg}
-⏰ 时间: {datetime.now().strftime('%m-%d %H:%M')}"""
+👤 账号{self.index}：
+📱 用户：{mask_username(self.user_name)}
+🏅 等级：{self.user_group}
+💰 恩山币：{self.coin_before} → {self.coin_after or self.coin_before}
+📊 积分：{self.point_before} → {self.point_after or self.point_before}
+🎯 贡献：{self.contribution} 分
+📝 签到：{signin_msg}{gain_info}
+⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
         
         print(f"{'✅ 任务完成' if signin_success else '❌ 任务失败'}")
         return final_msg, signin_success
@@ -458,34 +458,27 @@ def main():
                 'username': mask_username(signer.user_name) if signer.user_name else f"账号{index + 1}"
             })
             
-            # 发送单个账号通知
+            # 发送单个账号通知（统一格式）
             status = "成功" if is_success else "失败"
-            title = f"恩山论坛账号{index + 1}签到{status}"
+            title = f"[恩山论坛]签到{status}"
             notify_user(title, result_msg)
             
         except Exception as e:
             error_msg = f"账号{index + 1}: 执行异常 - {str(e)}"
             print(f"❌ {error_msg}")
-            notify_user(f"恩山论坛账号{index + 1}签到失败", error_msg)
-    
-    # 发送汇总通知
-    if total_count > 1:
-        summary_msg = f"""📊 恩山论坛签到汇总
+            notify_user("[恩山论坛]签到失败", error_msg)
 
-📈 总计: {total_count}个账号
-✅ 成功: {success_count}个
-❌ 失败: {total_count - success_count}个
-📊 成功率: {success_count/total_count*100:.1f}%
-⏰ 完成时间: {datetime.now().strftime('%m-%d %H:%M')}"""
-        
-        # 添加详细结果（最多显示5个账号的详情）
-        if len(results) <= 5:
-            summary_msg += "\n\n📋 详细结果:"
-            for result in results:
-                status_icon = "✅" if result['success'] else "❌"
-                summary_msg += f"\n{status_icon} {result['username']}"
-        
-        notify_user("恩山论坛签到汇总", summary_msg)
+    # 发送汇总通知（统一格式）
+    if total_count > 1:
+        summary_msg = f"""🌐 域名：www.right.com.cn
+
+📊 签到汇总：
+✅ 成功：{success_count}个
+❌ 失败：{total_count - success_count}个
+📈 成功率：{success_count/total_count*100:.1f}%
+⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+
+        notify_user("[恩山论坛]签到汇总", summary_msg)
     
     print(f"\n==== 恩山论坛签到完成 - 成功{success_count}/{total_count} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
 

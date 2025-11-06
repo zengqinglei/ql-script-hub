@@ -23,6 +23,7 @@ except ImportError:
     print("⚠️  未加载通知模块，跳过通知功能")
 
 # 配置项
+BAIDU_DOMAIN = os.getenv("BAIDU_DOMAIN", "https://pan.baidu.com").rstrip("/")
 BAIDU_COOKIE = os.environ.get('BAIDU_COOKIE', '')
 max_random_delay = int(os.getenv("MAX_RANDOM_DELAY", "3600"))
 random_signin = os.getenv("RANDOM_SIGNIN", "true").lower() == "true"
@@ -40,7 +41,7 @@ HEADERS = {
     'Sec-Fetch-Site': 'same-origin',
     'Sec-Fetch-Mode': 'cors',
     'Sec-Fetch-Dest': 'empty',
-    'Referer': 'https://pan.baidu.com/wap/svip/growth/task',
+    'Referer': f'{BAIDU_DOMAIN}/wap/svip/growth/task',
     'Accept-Encoding': 'gzip, deflate',
     'Accept-Language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
 }
@@ -102,7 +103,7 @@ class BaiduPan:
             return False, "Cookie配置错误"
 
         print("📝 正在执行签到...")
-        url = "https://pan.baidu.com/rest/2.0/membership/level?app_id=250528&web=5&method=signin"
+        url = f"{BAIDU_DOMAIN}/rest/2.0/membership/level?app_id=250528&web=5&method=signin"
         signed_headers = HEADERS.copy()
         signed_headers['Cookie'] = self.cookie
         
@@ -156,7 +157,7 @@ class BaiduPan:
             return None, None
 
         print("🤔 正在获取每日问题...")
-        url = "https://pan.baidu.com/act/v2/membergrowv2/getdailyquestion?app_id=250528&web=5"
+        url = f"{BAIDU_DOMAIN}/act/v2/membergrowv2/getdailyquestion?app_id=250528&web=5"
         signed_headers = HEADERS.copy()
         signed_headers['Cookie'] = self.cookie
         
@@ -187,7 +188,7 @@ class BaiduPan:
 
         print("📝 正在回答每日问题...")
         url = (
-            "https://pan.baidu.com/act/v2/membergrowv2/answerquestion"
+            f"{BAIDU_DOMAIN}/act/v2/membergrowv2/answerquestion"
             f"?app_id=250528&web=5&ask_id={ask_id}&answer={answer}"
         )
         signed_headers = HEADERS.copy()
@@ -226,28 +227,83 @@ class BaiduPan:
             self.add_message(f"❌ {error_msg}")
             return False, error_msg
 
+    def get_storage_info(self):
+        """获取存储空间信息"""
+        if not self.cookie.strip():
+            return None
+
+        print("💾 正在获取存储空间信息...")
+        url = f"{BAIDU_DOMAIN}/api/quota?clienttype=0&app_id=250528&web=1"
+        signed_headers = HEADERS.copy()
+        signed_headers['Cookie'] = self.cookie
+
+        try:
+            resp = requests.get(url, headers=signed_headers, timeout=15)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get('errno') == 0:
+                    total_bytes = data.get('total', 0)
+                    used_bytes = data.get('used', 0)
+
+                    # 转换为GB
+                    total_gb = round(total_bytes / (1024**3), 2)
+                    used_gb = round(used_bytes / (1024**3), 2)
+
+                    if total_gb > 0:
+                        usage_percent = round((used_gb / total_gb) * 100, 1)
+                        print(f"💾 存储空间: {used_gb}GB / {total_gb}GB ({usage_percent}%)")
+                        return {
+                            'used_gb': used_gb,
+                            'total_gb': total_gb,
+                            'usage_percent': usage_percent
+                        }
+                else:
+                    print(f"⚠️ 获取存储信息失败，errno: {data.get('errno')}")
+            else:
+                print(f"⚠️ 获取存储信息失败，状态码: {resp.status_code}")
+        except Exception as e:
+            print(f"⚠️ 存储信息请求异常: {e}")
+
+        return None
+
     def get_user_info(self):
         """获取用户信息"""
         if not self.cookie.strip():
             return "未知用户", "未知", "未知", "未知"
 
         print("👤 正在获取用户信息...")
-        url = "https://pan.baidu.com/rest/2.0/membership/user?app_id=250528&web=5&method=query"
+
+        # 获取用户名（使用uinfo API）
+        user = "未知用户"
+        try:
+            uinfo_url = f"{BAIDU_DOMAIN}/rest/2.0/xpan/nas?method=uinfo"
+            uinfo_headers = HEADERS.copy()
+            uinfo_headers['Cookie'] = self.cookie
+            uinfo_resp = requests.get(uinfo_url, headers=uinfo_headers, timeout=15)
+            if uinfo_resp.status_code == 200:
+                uinfo_data = uinfo_resp.json()
+                if uinfo_data.get('errno') == 0:
+                    user = uinfo_data.get('baidu_name', '未知用户')
+                    if not user:
+                        user = uinfo_data.get('netdisk_name', '未知用户')
+        except Exception as e:
+            print(f"  ⚠️ 获取用户名失败: {e}")
+
+        # 获取会员信息
+        url = f"{BAIDU_DOMAIN}/rest/2.0/membership/user?app_id=250528&web=5&method=query"
         signed_headers = HEADERS.copy()
         signed_headers['Cookie'] = self.cookie
-        
+
         try:
             resp = requests.get(url, headers=signed_headers, timeout=15)
             if resp.status_code == 200:
                 current_value = re.search(r'current_value":(\d+)', resp.text)
                 current_level = re.search(r'current_level":(\d+)', resp.text)
-                username = re.search(r'"username":"(.*?)"', resp.text)
                 vip_type = re.search(r'"vip_type":(\d+)', resp.text)
 
                 level = current_level.group(1) if current_level else "未知"
                 value = current_value.group(1) if current_value else "未知"
-                user = username.group(1) if username else "未知用户"
-                
+
                 # VIP类型解析
                 vip_status = "普通用户"
                 if vip_type:
@@ -268,7 +324,7 @@ class BaiduPan:
 
                 level_msg = f"当前会员等级: Lv.{level}，成长值: {value}，会员类型: {vip_status}"
                 self.add_message(level_msg)
-                
+
                 print(f"👤 用户: {user}")
                 print(f"🏆 等级: Lv.{level}")
                 print(f"📊 成长值: {value}")
@@ -287,12 +343,12 @@ class BaiduPan:
         print(f"\n==== 百度网盘账号{self.index} 开始签到 ====")
         
         if not self.cookie.strip():
-            error_msg = """Cookie配置错误
+            error_msg = f"""Cookie配置错误
 
 ❌ 错误原因: 未找到BAIDU_COOKIE环境变量
 
 🔧 解决方法:
-1. 打开百度网盘网页版: https://pan.baidu.com/
+1. 打开百度网盘网页版: {BAIDU_DOMAIN}
 2. 登录您的账号
 3. 按F12打开开发者工具
 4. 切换到Network标签页，刷新页面
@@ -316,24 +372,31 @@ class BaiduPan:
         answer, ask_id = self.get_daily_question()
         if answer and ask_id:
             answer_success, answer_msg = self.answer_question(answer, ask_id)
-        
+
         # 4. 获取用户信息
         user, level, value, vip_status = self.get_user_info()
-        
-        # 5. 组合结果消息
-        final_msg = f"""🌟 百度网盘签到结果
 
-👤 账号: {user}
-🏆 等级: Lv.{level} ({value}成长值)
-💎 会员: {vip_status}
+        # 5. 获取存储空间信息
+        storage_info = self.get_storage_info()
 
-📝 签到: {signin_msg}"""
+        # 6. 组合结果消息（统一模板格式）
+        final_msg = f"""🌐 域名：{BAIDU_DOMAIN.replace('https://', '').replace('http://', '')}
 
+👤 账号{self.index}：
+📱 用户：{user}
+💎 会员：{vip_status}，Lv.{level}（{value}成长值）"""
+
+        if storage_info:
+            final_msg += f"\n💾 存储：{storage_info['used_gb']}GB / {storage_info['total_gb']}GB ({storage_info['usage_percent']}%)"
+
+        # 合并签到和答题信息
+        task_info = signin_msg
         if answer_msg:
-            final_msg += f"\n🤔 答题: {answer_msg}"
+            task_info += f"，{answer_msg}"
+        final_msg += f"\n📝 签到：{task_info}"
 
-        final_msg += f"\n⏰ 时间: {datetime.now().strftime('%m-%d %H:%M')}"
-        
+        final_msg += f"\n⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+
         # 签到或答题任一成功都算成功
         is_success = signin_success or answer_success
         print(f"{'✅ 任务完成' if is_success else '❌ 任务失败'}")
@@ -357,10 +420,10 @@ def main():
     baidu_cookies = BAIDU_COOKIE
     
     if not baidu_cookies:
-        error_msg = """❌ 未找到BAIDU_COOKIE环境变量
+        error_msg = f"""❌ 未找到BAIDU_COOKIE环境变量
 
 🔧 获取Cookie的方法:
-1. 打开百度网盘网页版: https://pan.baidu.com/
+1. 打开百度网盘网页版: {BAIDU_DOMAIN}
 2. 登录您的账号
 3. 按F12打开开发者工具
 4. 切换到Network标签页，刷新页面
@@ -408,32 +471,25 @@ def main():
             
             # 发送单个账号通知
             status = "成功" if is_success else "失败"
-            title = f"百度网盘账号{index + 1}签到{status}"
+            title = f"[百度网盘]签到{status}"
             notify_user(title, result_msg)
             
         except Exception as e:
             error_msg = f"账号{index + 1}: 执行异常 - {str(e)}"
             print(f"❌ {error_msg}")
-            notify_user(f"百度网盘账号{index + 1}签到失败", error_msg)
+            notify_user("[百度网盘]签到失败", error_msg)
     
     # 发送汇总通知
     if total_count > 1:
-        summary_msg = f"""📊 百度网盘签到汇总
+        summary_msg = f"""🌐 域名：{BAIDU_DOMAIN.replace('https://', '').replace('http://', '')}
 
-📈 总计: {total_count}个账号
-✅ 成功: {success_count}个
-❌ 失败: {total_count - success_count}个
-📊 成功率: {success_count/total_count*100:.1f}%
-⏰ 完成时间: {datetime.now().strftime('%m-%d %H:%M')}"""
-        
-        # 添加详细结果（最多显示5个账号的详情）
-        if len(results) <= 5:
-            summary_msg += "\n\n📋 详细结果:"
-            for result in results:
-                status_icon = "✅" if result['success'] else "❌"
-                summary_msg += f"\n{status_icon} 账号{result['index']}"
-        
-        notify_user("百度网盘签到汇总", summary_msg)
+📊 签到汇总：
+✅ 成功：{success_count}个
+❌ 失败：{total_count - success_count}个
+📈 成功率：{success_count/total_count*100:.1f}%
+⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+
+        notify_user("[百度网盘]签到汇总", summary_msg)
     
     print(f"\n==== 百度网盘签到完成 - 成功{success_count}/{total_count} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
 

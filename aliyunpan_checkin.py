@@ -7,6 +7,13 @@ new Env('阿里云盘签到')
 
 import json
 import os
+import sys
+import io
+
+# 设置标准输出编码为UTF-8（解决Windows环境emoji显示问题）
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
 import requests
 import urllib3
 import random
@@ -567,12 +574,12 @@ class AliYun:
         """获取存储空间信息"""
         try:
             print("💾 正在获取存储空间信息...")
-            url = "https://api.aliyundrive.com/v2/user/get"
+            url = "https://api.aliyundrive.com/v2/databox/get_personal_info"
             headers = {
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json"
             }
-            
+
             response = requests.post(url=url, headers=headers, json={}, timeout=15)
             if response.status_code == 200:
                 result = response.json()
@@ -726,37 +733,36 @@ class AliYun:
         # 4. 执行签到
         sign_msg, is_success, reward_info = self.sign(access_token)
         
-        # 5. 组合结果消息（通知用）
-        final_msg = f"""🌟 阿里云盘签到结果
+        # 5. 组合结果消息（统一模板格式）
+        final_msg = f"""🌐 域名：aliyundrive.com
 
-👤 账号: {user_name}"""
-        
-        if display_phone:
-            final_msg += f"\n📱 手机: {display_phone}"
-            
+👤 账号{self.index}："""
+
+        if user_name:
+            final_msg += f"\n📱 用户：{user_name}"
+
         if total_gb > 0:
             usage_percent = round((used_gb / total_gb) * 100, 1)
-            final_msg += f"\n💾 存储: {used_gb}GB / {total_gb}GB ({usage_percent}%)"
-            
-        final_msg += f"""
-📝 签到: {sign_msg}"""
+            final_msg += f"\n💾 存储：{used_gb}GB / {total_gb}GB ({usage_percent}%)"
+
+        final_msg += f"\n📝 签到：{sign_msg}"
 
         if reward_info:
-            final_msg += f"\n🎁 奖励: {reward_info}"
+            final_msg += f"，{reward_info}"
 
         # Token更新状态
         if self.new_refresh_token:
             if auto_update_token:
-                final_msg += f"\n🔄 Token: 已自动更新"
+                final_msg += f"\n🔄 Token：已自动更新"
             else:
-                final_msg += f"\n🔄 Token: 检测到新token，请手动更新"
-            
+                final_msg += f"\n🔄 Token：检测到新token，请手动更新"
+
             # 只在明确允许时显示token
             if show_token_in_notification:
-                final_msg += f"\n💡 新token: {mask_sensitive_data(self.new_refresh_token, 'token')}"
+                final_msg += f"\n💡 新token：{mask_sensitive_data(self.new_refresh_token, 'token')}"
 
-        final_msg += f"\n⏰ 时间: {datetime.now().strftime('%m-%d %H:%M')}"
-        
+        final_msg += f"\n⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+
         print(f"{'✅ 签到成功' if is_success else '❌ 签到失败'}")
         return final_msg, is_success
 
@@ -832,10 +838,10 @@ def main():
                 'account_id': aliyun.account_id
             })
             
-            # 发送单个账号通知
+            # 发送单个账号通知（统一标题格式）
             status = "成功" if is_success else "失败"
-            title = f"阿里云盘账号{index + 1}签到{status}"
-            
+            title = f"[阿里云盘]签到{status}"
+
             notify_user(title, result_msg)
             
         except Exception as e:
@@ -845,24 +851,17 @@ def main():
             title = f"阿里云盘账号{index + 1}签到失败"
             notify_user(title, error_msg)
     
-    # 发送汇总通知
+    # 发送汇总通知（统一格式）
     if total_count > 1:
-        summary_msg = f"""📊 阿里云盘签到汇总
+        summary_msg = f"""🌐 域名：aliyundrive.com
 
-📈 总计: {total_count}个账号
-✅ 成功: {success_count}个
-❌ 失败: {total_count - success_count}个
-📊 成功率: {success_count/total_count*100:.1f}%
-⏰ 完成时间: {datetime.now().strftime('%m-%d %H:%M')}"""
-        
-        # 添加详细结果（最多显示5个账号的详情）
-        if len(results) <= 5:
-            summary_msg += "\n\n📋 详细结果:"
-            for result in results:
-                status_icon = "✅" if result['success'] else "❌"
-                summary_msg += f"\n{status_icon} 账号{result['index']}"
-        
-        notify_user("阿里云盘签到汇总", summary_msg)
+📊 签到汇总：
+✅ 成功：{success_count}个
+❌ 失败：{total_count - success_count}个
+📈 成功率：{success_count/total_count*100:.1f}%
+⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+
+        notify_user("[阿里云盘]签到汇总", summary_msg)
     
     print(f"\n==== 阿里云盘签到完成 - 成功{success_count}/{total_count} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
 

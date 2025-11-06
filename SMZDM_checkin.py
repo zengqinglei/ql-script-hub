@@ -260,19 +260,18 @@ def smzdm_signin(cookie, index):
         # 4. 获取本月经验
         monthly_exp = get_monthly_exp(cookie)
         
-        # 5. 组合结果消息
-        final_msg = f"""什么值得买签到结果
+        # 5. 组合结果消息（统一模板格式）
+        final_msg = f"""🌐 域名：www.smzdm.com
 
-👤 账号: 第{index}个账号 ({name})
-⭐ 等级: VIP{level}
-💰 金币: {gold}
-🪙 碎银: {silver}
-📊 本月经验: {monthly_exp}
-
-🎯 签到状态: {signin_msg}
-📊 状态码: {signin_code}{reward_info}
-
-🕐 签到时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+👤 账号{index}：
+📱 用户：{name}
+⭐ 等级：VIP{level}
+💰 金币：{gold}
+🪙 碎银：{silver}
+📊 本月经验：{monthly_exp}
+📝 签到：{signin_msg}
+📊 状态码：{signin_code}{reward_info}
+⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
         
         # 判断是否成功
         is_success = (str(signin_code) == "0" or 
@@ -316,7 +315,7 @@ def main():
     if not SMZDM_COOKIE_env:
         error_msg = "❌ 未找到SMZDM_COOKIE环境变量，请设置什么值得买Cookie"
         print(error_msg)
-        notify_user("什么值得买签到失败", error_msg)
+        notify_user("[什么值得买]签到失败", error_msg)
         return
 
     # 解析多账号Cookie
@@ -340,26 +339,26 @@ def main():
             if is_success:
                 success_count += 1
             
-            # 发送单个账号通知
-            title = f"什么值得买账号{i + 1}签到{'成功' if is_success else '失败'}"
+            # 发送单个账号通知（统一格式）
+            title = f"[什么值得买]签到{'成功' if is_success else '失败'}"
             notify_user(title, result_msg)
-            
+
         except Exception as e:
             error_msg = f"❌ 账号{i + 1}: 处理异常 - {str(e)}"
             print(error_msg)
-            notify_user(f"什么值得买账号{i + 1}签到失败", error_msg)
-    
-    # 发送汇总通知
-    if total_count > 1:
-        summary_msg = f"""什么值得买签到汇总
+            notify_user("[什么值得买]签到失败", error_msg)
 
-📊 总计处理: {total_count}个账号
-✅ 签到成功: {success_count}个账号
-❌ 签到失败: {total_count - success_count}个账号
-📈 成功率: {success_count/total_count*100:.1f}%
-🕐 完成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
-        
-        notify_user("什么值得买签到汇总", summary_msg)
+    # 发送汇总通知（统一格式）
+    if total_count > 1:
+        summary_msg = f"""🌐 域名：www.smzdm.com
+
+📊 签到汇总：
+✅ 成功：{success_count}个
+❌ 失败：{total_count - success_count}个
+📈 成功率：{success_count/total_count*100:.1f}%
+⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+
+        notify_user("[什么值得买]签到汇总", summary_msg)
     
     print(f"\n==== 什么值得买签到完成 - 成功{success_count}/{total_count} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
 

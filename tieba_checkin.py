@@ -338,18 +338,19 @@ class Tieba:
             # 判断是否成功：只要没有严重错误就算成功
             is_success = stats["total"] > 0 and (stats["success"] + stats["exist"]) > 0
             
-            # 格式化结果消息
-            result_msg = f"""🎯 百度贴吧签到结果
+            # 格式化结果消息（统一模板格式）
+            result_msg = f"""🌐 域名：tieba.baidu.com
 
-👤 账号信息: {user_name}
-📊 贴吧总数: {stats["total"]}
-✅ 签到成功: {stats["success"]}
-📅 已经签到: {stats["exist"]}
-🚫 被屏蔽的: {stats["shield"]}
-❌ 签到失败: {stats["error"]}
-📈 签到效率: {efficiency} ({((total_actions/stats['total'])*100 if stats['total'] > 0 else 0):.1f}%)
-⏱️ 用时: {duration}秒
-🕐 完成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+👤 账号{self.index}：
+📱 用户：{user_name}
+📊 贴吧总数：{stats["total"]}
+✅ 签到成功：{stats["success"]}
+📅 已经签到：{stats["exist"]}
+🚫 被屏蔽的：{stats["shield"]}
+❌ 签到失败：{stats["error"]}
+📈 签到效率：{efficiency} ({((total_actions/stats['total'])*100 if stats['total'] > 0 else 0):.1f}%)
+⏱️ 用时：{duration}秒
+⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
 
             print(f"\n🎉 === 最终签到结果 ===")
             print(result_msg)
@@ -381,7 +382,7 @@ def main():
     if not tieba_cookie:
         error_msg = "❌ 未找到TIEBA_COOKIE环境变量，请设置百度贴吧Cookie"
         print(error_msg)
-        notify_user("百度贴吧签到失败", error_msg)
+        notify_user("[百度贴吧]签到失败", error_msg)
         return
 
     # 支持多账号（用换行分隔）
@@ -407,27 +408,26 @@ def main():
             if is_success:
                 success_accounts += 1
             
-            # 发送单个账号通知 - 修复判断逻辑
-            title = f"百度贴吧账号{index + 1}签到{'成功' if is_success else '失败'}"
+            # 发送单个账号通知（统一格式）
+            title = f"[百度贴吧]签到{'成功' if is_success else '失败'}"
             notify_user(title, result_msg)
-            
+
         except Exception as e:
             error_msg = f"❌ 账号{index + 1}: 初始化失败 - {str(e)}"
             print(error_msg)
             all_results.append(error_msg)
-            notify_user(f"百度贴吧账号{index + 1}签到失败", error_msg)
-    
-    # 发送汇总通知
+            notify_user("[百度贴吧]签到失败", error_msg)
+
+    # 发送汇总通知（统一格式）
     if len(cookies) > 1:
-        summary_msg = f"""🎯 百度贴吧签到汇总
+        summary_msg = f"""🌐 域名：tieba.baidu.com
 
-📊 总计处理: {len(cookies)}个账号
-✅ 成功账号: {success_accounts}个
-❌ 失败账号: {len(cookies) - success_accounts}个
-📅 执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-详细结果请查看各账号单独通知"""
-        notify_user('百度贴吧签到汇总', summary_msg)
+📊 签到汇总：
+✅ 成功：{success_accounts}个
+❌ 失败：{len(cookies) - success_accounts}个
+📈 成功率：{success_accounts/len(cookies)*100:.1f}%
+⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+        notify_user('[百度贴吧]签到汇总', summary_msg)
         print(f"\n📊 === 汇总统计 ===")
         print(summary_msg)
     
