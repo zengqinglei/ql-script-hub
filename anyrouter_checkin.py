@@ -14,7 +14,7 @@ import random
 import re
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import requests
 
@@ -30,13 +30,11 @@ except ImportError:
 
 # ---------------- 可选通知模块 ----------------
 hadsend = False
-notify_error = None
 try:
     from notify import send
     hadsend = True
     print("通知模块加载成功")
 except Exception as e:
-    notify_error = str(e)
     print(f"通知模块加载失败: {e}")
     def send(title, content):
         pass
@@ -198,38 +196,60 @@ def build_session(cookies_dict, api_user):
 
 
 def get_user_info(session):
-    """获取用户信息"""
+    """获取用户信息，返回 (成功状态, 余额信息字符串, 用户名, quota, used_quota)"""
     try:
-        response = session.get(f'{BASE_URL}/api/user/self', timeout=TIMEOUT)
+        user_info_url = f'{BASE_URL}/api/user/self'
+        response = session.get(user_info_url, timeout=TIMEOUT)
 
         if DEBUG_MODE:
             print(f'  [DEBUG] 用户信息响应状态码: {response.status_code}')
-            print(f'  [DEBUG] 用户信息响应内容: {response.text}')
+            print(f'  [DEBUG] 用户信息响应内容: {response.text[:200]}...')
 
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('success'):
-                user_data = data.get('data', {})
-                quota = round(user_data.get('quota', 0) / 500000, 2)
-                used_quota = round(user_data.get('used_quota', 0) / 500000, 2)
-
+        # 检查是否遇到 WAF 挑战
+        if response.status_code == 200 and '<script>' in response.text and 'arg1=' in response.text:
+            if DEBUG_MODE:
+                print(f'  [DEBUG] 用户信息接口遇到 WAF 挑战，尝试解决...')
+            if execute_waf_challenge(session, response.text, user_info_url):
+                time.sleep(1)
+                response = session.get(user_info_url, timeout=TIMEOUT)
                 if DEBUG_MODE:
-                    print(f'  [DEBUG] 解析余额 - quota: {user_data.get("quota", 0)} -> ${quota}')
-                    print(f'  [DEBUG] 解析已用 - used_quota: {user_data.get("used_quota", 0)} -> ${used_quota}')
-
-                return True, f'当前余额: ${quota}, 已使用: ${used_quota}'
+                    print(f'  [DEBUG] 重试用户信息响应状态码: {response.status_code}')
             else:
                 if DEBUG_MODE:
-                    print(f'  [DEBUG] 用户信息API返回success=false')
+                    print(f'  [DEBUG] 用户信息接口 WAF 挑战失败')
+                return False, None, None, 0, 0
+
+        if response.status_code == 200:
+            try:
+                data = response.json()
+                if data.get('success'):
+                    user_data = data.get('data', {})
+                    quota = round(user_data.get('quota', 0) / 500000, 2)
+                    used_quota = round(user_data.get('used_quota', 0) / 500000, 2)
+                    username = user_data.get('display_name') or user_data.get('username', '未知用户')
+
+                    if DEBUG_MODE:
+                        print(f'  [DEBUG] 用户名: {username}')
+                        print(f'  [DEBUG] 解析余额 - quota: {user_data.get("quota", 0)} -> ${quota}')
+                        print(f'  [DEBUG] 解析已用 - used_quota: {user_data.get("used_quota", 0)} -> ${used_quota}')
+
+                    balance_info = f'当前余额: ${quota}, 已使用: ${used_quota}'
+                    return True, balance_info, username, quota, used_quota
+                else:
+                    if DEBUG_MODE:
+                        print(f'  [DEBUG] 用户信息API返回success=false')
+            except json.JSONDecodeError:
+                if DEBUG_MODE:
+                    print(f'  [DEBUG] 用户信息响应无法解析为JSON')
         else:
             if DEBUG_MODE:
                 print(f'  [DEBUG] 用户信息请求失败，状态码: {response.status_code}')
 
-        return False, None
+        return False, None, None, 0, 0
     except Exception as e:
         if DEBUG_MODE:
             print(f'  [DEBUG] 获取用户信息异常: {str(e)}')
-        return False, None
+        return False, None, None, 0, 0
 
 
 def get_basic_waf_cookies(session):
@@ -395,13 +415,13 @@ def check_in_account(account_info, account_index):
 
     if not api_user:
         print(f'{account_name}: ❌ 未找到 API 用户标识')
-        return "error", "未找到 API 用户标识", None, None
+        return "error", "未找到 API 用户标识", None, 0, None
 
     # 解析用户 cookies
     user_cookies = parse_cookies(cookies_data)
     if not user_cookies:
         print(f'{account_name}: ❌ 配置格式无效')
-        return "error", "配置格式无效", None, None
+        return "error", "配置格式无效", None, 0, None
 
     # 构建会话
     session = build_session(user_cookies, api_user)
@@ -411,20 +431,12 @@ def check_in_account(account_info, account_index):
         get_basic_waf_cookies(session)
 
         # 步骤2：获取签到前的用户信息
-        print(f"  📊 获取签到前余额...")
-        before_success, before_info = get_user_info(session)
-        before_quota = 0
-        before_used = 0
+        print(f"  📊 获取签到前信息...")
+        before_success, before_info, username, before_quota, before_used = get_user_info(session)
 
         if before_success and before_info:
+            print(f"  👤 用户: {username}")
             print(f"  💰 签到前: {before_info}")
-            # 解析余额数据
-            quota_match = re.search(r'\$(\d+\.?\d*)', before_info.split(',')[0])
-            used_match = re.search(r'\$(\d+\.?\d*)', before_info.split(',')[1])
-            if quota_match:
-                before_quota = float(quota_match.group(1))
-            if used_match:
-                before_used = float(used_match.group(1))
 
         # 步骤3：执行签到
         print(f"  🎯 执行签到...")
@@ -450,7 +462,7 @@ def check_in_account(account_info, account_index):
                     print(f'  [DEBUG] 重试签到响应状态码: {response.status_code}')
                     print(f'  [DEBUG] 重试签到响应内容: {response.text}')
             else:
-                return "fail", "WAF 挑战失败", None, None
+                return "fail", "WAF 挑战失败", None, 0, username
 
         if response.status_code == 200:
             try:
@@ -460,47 +472,49 @@ def check_in_account(account_info, account_index):
                     print(f'  [DEBUG] 签到响应JSON: {json.dumps(result, ensure_ascii=False, indent=2)}')
 
                 if result.get('ret') == 1 or result.get('code') == 0 or result.get('success'):
-                    msg = result.get('msg', result.get('message', '签到成功'))
-
                     # 步骤4：获取签到后的用户信息（计算余额变化）
                     print(f"  📊 获取签到后余额...")
                     time.sleep(1)
-                    after_success, after_info = get_user_info(session)
-                    after_quota = 0
-                    after_used = 0
+                    after_success, after_info, after_username, after_quota, after_used = get_user_info(session)
                     reward_amount = 0
 
                     if after_success and after_info:
                         print(f"  💰 签到后: {after_info}")
-                        # 解析余额数据
-                        quota_match = re.search(r'\$(\d+\.?\d*)', after_info.split(',')[0])
-                        used_match = re.search(r'\$(\d+\.?\d*)', after_info.split(',')[1])
-                        if quota_match:
-                            after_quota = float(quota_match.group(1))
-                        if used_match:
-                            after_used = float(used_match.group(1))
+
+                        # 使用签到后的用户名（更准确）
+                        if after_username:
+                            username = after_username
 
                         # 计算奖励金额（总余额的增加）
                         if before_success:
                             reward_amount = (after_quota + after_used) - (before_quota + before_used)
                             if reward_amount > 0:
+                                # 有奖励，说明刚签到成功
                                 print(f"  🎁 签到奖励: ${reward_amount:.2f}")
-                                msg = f"{msg}，获得 ${reward_amount:.2f}"
+                                msg = f"签到成功，获得 ${reward_amount:.2f}"
+                            else:
+                                # 无奖励，说明今日已签到
+                                msg = "今日已签到"
+                                print(f"  📅 {msg}")
+                        else:
+                            # 签到前获取余额失败，使用接口返回的消息
+                            msg = result.get('msg') or result.get('message') or '签到成功'
 
-                        return "success", msg, after_info, reward_amount
+                        return "success", msg, after_info, reward_amount, username
                     else:
-                        # 签到成功但获取余额失败
-                        return "success", msg, before_info if before_success else None, 0
+                        # 签到成功但获取余额失败，使用接口返回的消息
+                        msg = result.get('msg') or result.get('message') or '签到成功'
+                        return "success", msg, before_info if before_success else None, 0, username
                 else:
-                    error_msg = result.get('msg', result.get('message', '未知错误'))
-                    return "fail", error_msg, before_info if before_success else None, 0
+                    error_msg = result.get('msg') or result.get('message') or '未知错误'
+                    return "fail", error_msg, before_info if before_success else None, 0, username
             except json.JSONDecodeError:
                 if 'success' in response.text.lower():
-                    return "success", "签到成功", before_info if before_success else None, 0
+                    return "success", "签到成功", before_info if before_success else None, 0, username
                 else:
                     if DEBUG_MODE:
                         print(f'  [DEBUG] 无法解析响应为 JSON')
-                    return "fail", "响应格式无效", before_info if before_success else None, 0
+                    return "fail", "响应格式无效", before_info if before_success else None, 0, username
 
         elif response.status_code == 404:
             # 404保活逻辑：签到接口不存在，尝试查询用户信息进行保活
@@ -520,29 +534,29 @@ def check_in_account(account_info, account_index):
                         used_quota = round(user_data.get('data', {}).get('used_quota', 0) / 500000, 2)
                         user_info = f'当前余额: ${quota}, 已使用: ${used_quota}'
 
-                        return "success", "签到接口不存在，但账号状态正常", user_info, 0
+                        return "success", "签到接口不存在，但账号状态正常", user_info, 0, username
                     else:
                         print(f"⚠️ 用户信息查询失败: {user_data.get('message', 'Unknown error')}")
-                        return "fail", f"签到接口404，用户信息查询失败", before_info if before_success else None, 0
+                        return "fail", f"签到接口404，用户信息查询失败", before_info if before_success else None, 0, username
                 else:
                     print(f"⚠️ 用户信息接口返回 {user_resp.status_code}")
-                    return "fail", f"签到接口404，用户信息接口返回{user_resp.status_code}", before_info if before_success else None, 0
+                    return "fail", f"签到接口404，用户信息接口返回{user_resp.status_code}", before_info if before_success else None, 0, username
 
             except Exception as e:
                 print(f"⚠️ 用户信息查询异常: {e}")
-                return "fail", "签到接口404，用户信息查询也失败", before_info if before_success else None, 0
+                return "fail", "签到接口404，用户信息查询也失败", before_info if before_success else None, 0, username
 
         else:
-            return "fail", f"HTTP {response.status_code}", before_info if before_success else None, 0
+            return "fail", f"HTTP {response.status_code}", before_info if before_success else None, 0, username
 
     except requests.exceptions.Timeout:
-        return "error", f"请求超时（{TIMEOUT}秒）", None, 0
+        return "error", f"请求超时（{TIMEOUT}秒）", None, 0, None
     except requests.exceptions.ConnectionError as e:
-        return "error", f"连接失败: {str(e)[:80]}", None, 0
+        return "error", f"连接失败: {str(e)[:80]}", None, 0, None
     except Exception as e:
         error_msg = f"{e.__class__.__name__}: {str(e)[:100]}"
         print(f'{account_name}: ❌ 签到过程中出错 - {error_msg}')
-        return "error", error_msg, None, 0
+        return "error", error_msg, None, 0, None
     finally:
         session.close()
 
@@ -560,9 +574,7 @@ def main():
     if random_signin:
         delay_seconds = random.randint(0, max_random_delay)
         if delay_seconds > 0:
-            signin_time = datetime.now() + timedelta(seconds=delay_seconds)
-            print(f"随机模式: 延迟 {format_time_remaining(delay_seconds)} 后签到")
-            print(f"预计签到时间: {signin_time.strftime('%H:%M:%S')}\n")
+            print(f"随机模式: 延迟 {format_time_remaining(delay_seconds)} 后签到\n")
             wait_with_countdown(delay_seconds)
 
     # 加载账号配置
@@ -583,7 +595,7 @@ def main():
         name = f"账号{i + 1}"
 
         try:
-            status, msg, user_info, reward = check_in_account(account, i)
+            status, msg, user_info, reward, username = check_in_account(account, i)
 
             if status == "success":
                 success_count += 1
@@ -594,8 +606,12 @@ def main():
                 # 统一通知格式
                 notify_content = f"""🌐 域名：{BASE_URL.replace('https://', '').replace('http://', '')}
 
-👤 {name}：
-📝 签到：{msg}"""
+👤 {name}："""
+
+                if username:
+                    notify_content += f"\n📱 用户：{username}"
+
+                notify_content += f"\n📝 签到：{msg}"
 
                 if user_info:
                     notify_content += f"\n💰 账户：{user_info}"
@@ -613,8 +629,12 @@ def main():
                 # 统一通知格式
                 notify_content = f"""🌐 域名：{BASE_URL.replace('https://', '').replace('http://', '')}
 
-👤 {name}：
-📝 签到：{msg}"""
+👤 {name}："""
+
+                if username:
+                    notify_content += f"\n📱 用户：{username}"
+
+                notify_content += f"\n📝 签到：{msg}"
 
                 if user_info:
                     notify_content += f"\n💰 账户：{user_info}"
@@ -630,9 +650,12 @@ def main():
                 # 统一通知格式
                 notify_content = f"""🌐 域名：{BASE_URL.replace('https://', '').replace('http://', '')}
 
-👤 {name}：
-📝 签到：签到出错 - {msg}
-⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+👤 {name}："""
+
+                if username:
+                    notify_content += f"\n📱 用户：{username}"
+
+                notify_content += f"\n📝 签到：签到出错 - {msg}\n⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
                 safe_send_notify("[AnyRouter]签到出错", notify_content)
 
