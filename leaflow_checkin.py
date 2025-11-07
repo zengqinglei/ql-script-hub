@@ -234,6 +234,8 @@ def get_user_balance_info(session) -> tuple[dict, str]:
         if DEBUG_MODE:
             print(f"  [DEBUG] 余额API状态码: {r.status_code}")
             print(f"  [DEBUG] 响应内容类型: {r.headers.get('content-type', 'unknown')}")
+            print(f"  [DEBUG] 响应体长度: {len(r.text)}")
+            print(f"  [DEBUG] 响应体前200字符: {repr(r.text[:200])}")
 
         if r.status_code != 200:
             return {}, f"余额API访问失败: {r.status_code}"
@@ -247,6 +249,10 @@ def get_user_balance_info(session) -> tuple[dict, str]:
                 if DEBUG_MODE:
                     print(f"  [DEBUG] 直接获得JSON响应")
             except json.JSONDecodeError as e:
+                if DEBUG_MODE:
+                    print(f"  [DEBUG] JSON解析失败详情:")
+                    print(f"  [DEBUG]   - 响应体完整内容: {repr(r.text)}")
+                    print(f"  [DEBUG]   - 响应体bytes: {repr(r.content[:200])}")
                 return {}, f"JSON解析失败: {str(e)}"
         else:
             return {}, f"API返回非JSON响应，content-type: {content_type}"
