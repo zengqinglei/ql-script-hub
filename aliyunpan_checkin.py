@@ -686,10 +686,8 @@ class AliYun:
         # 5. 组合结果消息（统一模板格式）
         final_msg = f"""🌐 域名：aliyundrive.com
 
-👤 账号{self.index}："""
-
-        if user_name:
-            final_msg += f"\n📱 用户：{user_name}"
+👤 账号{self.index}：
+📱 用户：{user_name if user_name else '未知用户'}"""
 
         if total_gb > 0:
             usage_percent = round((used_gb / total_gb) * 100, 1)
