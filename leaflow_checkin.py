@@ -213,7 +213,8 @@ def get_user_balance_info(session) -> tuple[dict, str]:
             'X-Inertia-Version': '98497d2ccb64ae33c0053ceb4d917dfc',
             'X-Inertia': 'true',
             'X-Requested-With': 'XMLHttpRequest',
-            'Accept': 'text/html, application/xhtml+xml'
+            'Accept': 'text/html, application/xhtml+xml',
+            'Accept-Encoding': 'gzip, deflate'  # 只接受 gzip 和 deflate，不接受 br
         }
 
         # 从session的cookies中获取XSRF-TOKEN（使用字典访问方式避免多个同名cookie报错）
