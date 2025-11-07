@@ -249,11 +249,66 @@ def get_user_balance_info(session) -> tuple[dict, str]:
                 if DEBUG_MODE:
                     print(f"  [DEBUG] 直接获得JSON响应")
             except json.JSONDecodeError as e:
+                # JSON解析失败，可能是压缩数据未解压
                 if DEBUG_MODE:
-                    print(f"  [DEBUG] JSON解析失败详情:")
-                    print(f"  [DEBUG]   - 响应体完整内容: {repr(r.text)}")
-                    print(f"  [DEBUG]   - 响应体bytes: {repr(r.content[:200])}")
-                return {}, f"JSON解析失败: {str(e)}"
+                    print(f"  [DEBUG] JSON解析失败，尝试手动解压...")
+                    print(f"  [DEBUG]   - Content-Encoding: {r.headers.get('content-encoding', 'None')}")
+                    print(f"  [DEBUG]   - 响应体前20字节: {r.content[:20]}")
+
+                # 尝试手动解压
+                import gzip
+                import zlib
+                decompressed_text = None
+
+                # 尝试 Brotli 解压
+                try:
+                    import brotli
+                    decompressed = brotli.decompress(r.content)
+                    decompressed_text = decompressed.decode('utf-8')
+                    if DEBUG_MODE:
+                        print(f"  [DEBUG] ✓ Brotli 解压成功")
+                except Exception as brotli_err:
+                    if DEBUG_MODE:
+                        print(f"  [DEBUG] ✗ Brotli 解压失败: {brotli_err}")
+
+                # 尝试 Gzip 解压
+                if not decompressed_text:
+                    try:
+                        decompressed = gzip.decompress(r.content)
+                        decompressed_text = decompressed.decode('utf-8')
+                        if DEBUG_MODE:
+                            print(f"  [DEBUG] ✓ Gzip 解压成功")
+                    except Exception as gzip_err:
+                        if DEBUG_MODE:
+                            print(f"  [DEBUG] ✗ Gzip 解压失败: {gzip_err}")
+
+                # 尝试 Zlib 解压
+                if not decompressed_text:
+                    try:
+                        decompressed = zlib.decompress(r.content)
+                        decompressed_text = decompressed.decode('utf-8')
+                        if DEBUG_MODE:
+                            print(f"  [DEBUG] ✓ Zlib 解压成功")
+                    except Exception as zlib_err:
+                        if DEBUG_MODE:
+                            print(f"  [DEBUG] ✗ Zlib 解压失败: {zlib_err}")
+
+                # 尝试解析解压后的文本
+                if decompressed_text:
+                    try:
+                        data = json.loads(decompressed_text)
+                        if DEBUG_MODE:
+                            print(f"  [DEBUG] ✓ 手动解压后JSON解析成功")
+                    except json.JSONDecodeError as json_err:
+                        if DEBUG_MODE:
+                            print(f"  [DEBUG] ✗ 解压后JSON解析失败: {json_err}")
+                            print(f"  [DEBUG]   - 解压后内容前200字符: {repr(decompressed_text[:200])}")
+                        return {}, f"解压后JSON解析失败: {str(json_err)}"
+                else:
+                    if DEBUG_MODE:
+                        print(f"  [DEBUG] ✗ 所有解压方式均失败")
+                        print(f"  [DEBUG]   - 响应体完整内容: {repr(r.text[:500])}")
+                    return {}, f"JSON解析失败且无法解压: {str(e)}"
         else:
             return {}, f"API返回非JSON响应，content-type: {content_type}"
 
