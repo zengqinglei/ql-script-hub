@@ -27,13 +27,11 @@ except ImportError:
 
 # ---------------- 可选通知模块 ----------------
 hadsend = False
-notify_error = None
 try:
     from notify import send
     hadsend = True
     print("✅ 通知模块加载成功")
 except Exception as e:
-    notify_error = str(e)
     print(f"⚠️ 通知模块加载失败: {e}")
     def send(title, content):
         pass
@@ -47,8 +45,7 @@ RETRY_DELAY = int(os.getenv("RETRY_DELAY", "5"))
 RANDOM_SIGNIN = os.getenv("RANDOM_SIGNIN", "true").lower() == "true"
 MAX_RANDOM_DELAY = int(os.getenv("MAX_RANDOM_DELAY", "3600"))
 NOTIFY_ON_ALREADY = os.getenv("NOTIFY_ON_ALREADY", "true").lower() == "true"  # 已签到是否通知
-DEBUG_MODE = os.getenv("DEBUG_MODE", "false").lower() == "true"  # 🆕 调试模式
-PRIVACY_MODE = os.getenv("PRIVACY_MODE", "true").lower() == "true"  # 隐私保护模式
+DEBUG_MODE = os.getenv("DEBUG_MODE", "false").lower() == "true"  # 调试模式
 
 HTTP_PROXY = os.getenv("HTTP_PROXY") or os.getenv("http_proxy")
 HTTPS_PROXY = os.getenv("HTTPS_PROXY") or os.getenv("https_proxy")
@@ -125,6 +122,7 @@ def extract_csrf(html: str) -> dict:
         if name_match:
             data[name_match.group(1)] = value_match.group(1) if value_match else ""
     return data
+
 def extract_reward(html: str) -> float:
     """
     🔧 修复版本：优先匹配今日签到奖励，避免误取历史记录
@@ -204,7 +202,7 @@ def get_user_balance_info(session) -> tuple[dict, str]:
     获取用户余额和账户信息 - 通过API接口
     """
     try:
-        kwargs = {"timeout": TIMEOUT, "allow_redirects": False}
+        kwargs = {"timeout": TIMEOUT, "allow_redirects": True}
         if USE_CURL_CFFI:
             kwargs["impersonate"] = "chrome120"
 
@@ -346,14 +344,6 @@ def sign_once_impl(session) -> tuple[str, str, float]:
             return "error", "POST 被拒绝 403", 0
 
         html2 = r2.text or ""
-
-        if DEBUG_MODE:
-            # 保存HTML到临时文件用于调试
-            debug_file = f"debug_response_{int(time.time())}.html"
-            with open(debug_file, "w", encoding="utf-8") as f:
-                f.write(html2)
-            print(f"  [DEBUG] 响应已保存到: {debug_file}")
-
         status, msg, amount = parse_result(html2)
 
         if status == "unknown" or (status == "success" and amount == 0):
@@ -502,7 +492,6 @@ def main():
     print(f"  更新时间: {datetime.now().strftime('%Y-%m-%d')}")
     print(f"  更新内容: 新增账户余额和用户信息显示")
     print(f"  Cookie 格式: JSON 数组 [{{\"leaflow_session\":\"xxx\",...}}]")
-    print(f"  隐私模式: {'已启用' if PRIVACY_MODE else '已禁用'}")
     if DEBUG_MODE:
         print(f"  🐛 调试模式: 已启用")
     print(f"{'='*50}\n")
