@@ -8,7 +8,7 @@ import sys
 import time
 import random
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # ---------------- 统一通知模块加载 ----------------
 hadsend = False
@@ -132,11 +132,19 @@ class Quark:
         try:
             response = requests.post(url=url, json=data, params=querystring, timeout=10).json()
             if response.get("data"):
-                return True, response["data"]["sign_daily_reward"]
+                # 签到成功，返回奖励
+                return True, response["data"]["sign_daily_reward"], False
             else:
-                return False, response.get("message", "未知错误")
+                # 检查是否是重复签到
+                message = response.get("message", "")
+                if "repeat" in message.lower():
+                    # 今日已签到
+                    return True, 0, True
+                else:
+                    # 其他错误
+                    return False, response.get("message", "未知错误"), False
         except Exception as e:
-            return False, f"请求异常: {e}"
+            return False, f"请求异常: {e}", False
 
     def do_sign(self, index):
         """执行签到并返回统一格式的通知"""
@@ -150,58 +158,48 @@ class Quark:
         # 获取用户名
         username = self.param.get('user', f'账号{index}')
 
-        # 获取签到信息
+        # 直接执行签到
+        sign_success, sign_result, already_signed = self.get_growth_sign()
+
+        # 无论签到成功或失败，都获取最新账号信息
         growth_info = self.get_growth_info()
         if not growth_info:
-            return username, {}, "❌ 获取签到信息失败，Cookie可能已过期，请重新获取移动端Cookie", False
+            return username, {}, "❌ 获取账号信息失败，Cookie可能已过期", False
 
-        # 获取基本信息
+        # 构建账号信息
         is_vip = growth_info.get('88VIP', False)
         vip_status = "88VIP" if is_vip else "普通用户"
         total_capacity = self.convert_bytes(growth_info.get('total_capacity', 0))
 
-        # 获取签到累计容量
         sign_reward_capacity = "0B"
         if "sign_reward" in growth_info.get('cap_composition', {}):
             sign_reward_capacity = self.convert_bytes(growth_info['cap_composition']['sign_reward'])
 
-        # 构建额外信息字典
         extra_info = {
             'vip_status': vip_status,
             'total_capacity': total_capacity,
             'sign_reward_capacity': sign_reward_capacity
         }
 
-        # 检查是否已签到
+        # 签到失败
+        if not sign_success:
+            return username, extra_info, f"签到失败：{sign_result}", False
+
+        # 签到成功或今日已签到，获取签到进度
         cap_sign = growth_info.get('cap_sign', {})
-        if cap_sign.get("sign_daily"):
+        progress = cap_sign.get('sign_progress', 0)
+        target = cap_sign.get('sign_target', 0)
+
+        if already_signed:
             # 今日已签到
             reward = self.convert_bytes(cap_sign.get('sign_daily_reward', 0))
-            progress = cap_sign.get('sign_progress', 0)
-            target = cap_sign.get('sign_target', 0)
             sign_msg = f"今日已签到，获得 {reward}，连签进度 {progress}/{target}"
-            return username, extra_info, sign_msg, True
         else:
-            # 执行签到
-            sign_success, sign_result = self.get_growth_sign()
-            if sign_success:
-                reward = self.convert_bytes(sign_result)
-                progress = cap_sign.get('sign_progress', 0) + 1
-                target = cap_sign.get('sign_target', 0)
+            # 刚刚签到成功
+            reward = self.convert_bytes(sign_result)
+            sign_msg = f"签到成功，获得 {reward}，连签进度 {progress}/{target}"
 
-                # 签到成功后手动更新累计容量（避免重复API调用）
-                if "sign_reward" in growth_info.get('cap_composition', {}):
-                    original_bytes = growth_info['cap_composition']['sign_reward']
-                    # 将今日获得的容量加到累计容量中
-                    growth_info['cap_composition']['sign_reward'] = original_bytes + sign_result
-                    sign_reward_capacity = self.convert_bytes(growth_info['cap_composition']['sign_reward'])
-                    # 更新extra_info中的累计容量
-                    extra_info['sign_reward_capacity'] = sign_reward_capacity
-
-                sign_msg = f"签到成功，获得 {reward}，连签进度 {progress}/{target}"
-                return username, extra_info, sign_msg, True
-            else:
-                return username, extra_info, f"签到失败：{sign_result}", False
+        return username, extra_info, sign_msg, True
 
 def main():
     """主函数"""
@@ -290,9 +288,7 @@ if __name__ == "__main__":
     if random_signin:
         delay_seconds = random.randint(0, max_random_delay)
         if delay_seconds > 0:
-            signin_time = datetime.now() + timedelta(seconds=delay_seconds)
             print(f"随机模式: 延迟 {format_time_remaining(delay_seconds)} 后签到")
-            print(f"预计签到时间: {signin_time.strftime('%H:%M:%S')}")
             wait_with_countdown(delay_seconds)
 
     print("----------夸克网盘开始尝试签到----------")
