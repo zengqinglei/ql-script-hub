@@ -503,8 +503,8 @@ class AliYun:
             response = requests.post(url=url, headers=headers, json={}, timeout=15)
             if response.status_code == 200:
                 result = response.json()
-                user_name = result.get("user_name", "未知用户")
-                nick_name = result.get("nick_name", user_name)
+                user_name = result.get("user_name") or "未知用户"
+                nick_name = result.get("nick_name") or user_name
                 phone = result.get("phone", "")
 
                 print(f"👤 用户: {nick_name}")
