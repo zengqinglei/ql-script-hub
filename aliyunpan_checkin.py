@@ -20,7 +20,6 @@ import random
 import time
 import subprocess
 import sqlite3
-import hashlib
 from datetime import datetime, timedelta
 
 urllib3.disable_warnings()
@@ -39,43 +38,7 @@ except ImportError:
 max_random_delay = int(os.getenv("MAX_RANDOM_DELAY", "3600"))
 random_signin = os.getenv("RANDOM_SIGNIN", "true").lower() == "true"
 auto_update_token = os.getenv("AUTO_UPDATE_TOKEN", "true").lower() == "true"
-privacy_mode = os.getenv("PRIVACY_MODE", "true").lower() == "true"  # 隐私模式
 show_token_in_notification = os.getenv("SHOW_TOKEN_IN_NOTIFICATION", "false").lower() == "true"  # 通知中是否显示token
-
-def mask_sensitive_data(data, data_type="token"):
-    """脱敏处理敏感数据"""
-    if not data:
-        return "未知"
-    
-    if data_type == "token":
-        if len(data) <= 10:
-            return "*" * len(data)
-        return f"{data[:6]}...{data[-4:]}"
-    elif data_type == "phone":
-        if len(data) >= 7:
-            return f"{data[:3]}****{data[-4:]}"
-        return "***"
-    elif data_type == "email":
-        if "@" in data:
-            parts = data.split("@")
-            username = parts[0]
-            domain = parts[1]
-            if len(username) <= 2:
-                masked_username = "*" * len(username)
-            else:
-                masked_username = f"{username[:2]}{'*' * (len(username) - 2)}"
-            return f"{masked_username}@{domain}"
-        return "***@***.***"
-    else:
-        return str(data)
-
-def generate_account_id(token):
-    """生成账号唯一标识（用于区分多账号，不暴露真实信息）"""
-    if not token:
-        return "未知账号"
-    # 使用token的MD5值前8位作为账号标识
-    hash_obj = hashlib.md5(token.encode())
-    return f"账号{hash_obj.hexdigest()[:8].upper()}"
 
 def format_time_remaining(seconds):
     """格式化时间显示"""
@@ -451,17 +414,13 @@ class AliYun:
         self.refresh_token = refresh_token
         self.index = index
         self.new_refresh_token = None
-        self.account_id = generate_account_id(refresh_token)
 
     def update_token(self):
         """更新访问令牌"""
         try:
             print("🔄 正在更新访问令牌...")
-            if privacy_mode:
-                print(f"🔍 Token预览: {mask_sensitive_data(self.refresh_token, 'token')}")
-            else:
-                print(f"🔍 Token预览: {self.refresh_token[:20]}...{self.refresh_token[-10:]}")
-            
+            print(f"🔍 Token预览: {self.refresh_token[:20]}...{self.refresh_token[-10:]}")
+
             url = "https://auth.aliyundrive.com/v2/account/token"
             data = {"grant_type": "refresh_token", "refresh_token": self.refresh_token}
             
@@ -501,11 +460,7 @@ class AliYun:
                 
                 # 检查是否有新的refresh_token
                 if new_refresh_token and new_refresh_token != self.refresh_token:
-                    if privacy_mode:
-                        print(f"🔄 检测到新的refresh_token: {mask_sensitive_data(new_refresh_token, 'token')}")
-                    else:
-                        print(f"🔄 检测到新的refresh_token: {new_refresh_token[:20]}...{new_refresh_token[-10:]}")
-                    
+                    print(f"🔄 检测到新的refresh_token: {new_refresh_token[:20]}...{new_refresh_token[-10:]}")
                     self.new_refresh_token = new_refresh_token
                     
                     # 尝试自动更新环境变量
@@ -519,12 +474,10 @@ class AliYun:
                             self.refresh_token = new_refresh_token
                         else:
                             print("⚠️ 环境变量自动更新失败，请手动更新")
-                            if not privacy_mode:
-                                print(f"💡 请手动设置: ALIYUN_REFRESH_TOKEN={new_refresh_token}")
+                            print(f"💡 请手动设置: ALIYUN_REFRESH_TOKEN={new_refresh_token}")
                     else:
                         print("💡 建议手动更新环境变量中的refresh_token为新值")
-                        if not privacy_mode:
-                            print(f"💡 新值: {new_refresh_token}")
+                        print(f"💡 新值: {new_refresh_token}")
                 
                 return access_token, None
             else:
@@ -553,15 +506,12 @@ class AliYun:
                 user_name = result.get("user_name", "未知用户")
                 nick_name = result.get("nick_name", user_name)
                 phone = result.get("phone", "")
-                
-                # 手机号脱敏处理
-                display_phone = mask_sensitive_data(phone, "phone") if phone else ""
-                
+
                 print(f"👤 用户: {nick_name}")
-                if display_phone:
-                    print(f"📱 手机: {display_phone}")
-                    
-                return nick_name, display_phone
+                if phone:
+                    print(f"📱 手机: {phone}")
+
+                return nick_name, phone
             else:
                 print(f"⚠️ 获取用户信息失败，状态码: {response.status_code}")
                 return "未知用户", ""
@@ -720,18 +670,18 @@ class AliYun:
 7. 更新环境变量ALIYUN_REFRESH_TOKEN
 
 💡 提示: refresh_token通常以字母开头，长度较长"""
-            
+
             print(f"❌ {full_error_msg}")
             return full_error_msg, False
-        
-        # 2. 获取用户信息
-        user_name, display_phone = self.get_user_info(access_token)
-        
-        # 3. 获取存储信息
-        used_gb, total_gb = self.get_storage_info(access_token)
-        
-        # 4. 执行签到
+
+        # 2. 执行签到
         sign_msg, is_success, reward_info = self.sign(access_token)
+
+        # 3. 获取用户信息（签到后获取）
+        user_name, display_phone = self.get_user_info(access_token)
+
+        # 4. 获取存储信息（签到后获取）
+        used_gb, total_gb = self.get_storage_info(access_token)
         
         # 5. 组合结果消息（统一模板格式）
         final_msg = f"""🌐 域名：aliyundrive.com
@@ -759,7 +709,7 @@ class AliYun:
 
             # 只在明确允许时显示token
             if show_token_in_notification:
-                final_msg += f"\n💡 新token：{mask_sensitive_data(self.new_refresh_token, 'token')}"
+                final_msg += f"\n💡 新token：{self.new_refresh_token[:10]}...{self.new_refresh_token[-10:]}"
 
         final_msg += f"\n⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
@@ -772,7 +722,6 @@ def main():
     
     # 显示配置状态
     print(f"🤖 自动更新Token: {'已启用' if auto_update_token else '已禁用'}")
-    print(f"🔒 隐私保护模式: {'已启用' if privacy_mode else '已禁用'}")
     print(f"🔑 通知显示Token: {'是' if show_token_in_notification else '否'}")
     
     # 随机延迟（整体延迟）
@@ -814,8 +763,7 @@ def main():
     
     success_count = 0
     total_count = len(tokens)
-    results = []
-    
+
     for index, token in enumerate(tokens):
         try:
             # 账号间随机等待
@@ -823,21 +771,14 @@ def main():
                 delay = random.uniform(10, 20)
                 print(f"⏱️  随机等待 {delay:.1f} 秒后处理下一个账号...")
                 time.sleep(delay)
-            
+
             # 执行签到
             aliyun = AliYun(token, index + 1)
             result_msg, is_success = aliyun.main()
-            
+
             if is_success:
                 success_count += 1
-            
-            results.append({
-                'index': index + 1,
-                'success': is_success,
-                'message': result_msg,
-                'account_id': aliyun.account_id
-            })
-            
+
             # 发送单个账号通知（统一标题格式）
             status = "成功" if is_success else "失败"
             title = f"[阿里云盘]签到{status}"
