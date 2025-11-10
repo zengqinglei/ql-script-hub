@@ -199,60 +199,6 @@ def extract_reward(html: str) -> float:
         print("[DEBUG] 未匹配到任何金额")
     return 0
 
-def test_authentication(session, account_name: str) -> tuple[bool, str]:
-    """
-    测试 cookie 是否有效
-    尝试访问多个需要登录的页面进行验证
-    """
-    try:
-        kwargs = {"timeout": TIMEOUT, "allow_redirects": True}
-        if USE_CURL_CFFI:
-            kwargs["impersonate"] = "chrome120"
-
-        # 测试多个URL（优先访问签到页面，确保获取签到域的 XSRF-TOKEN）
-        test_urls = [
-            BASE,  # 签到页面（必须第一个访问，刷新签到域的 XSRF-TOKEN）
-            f"{LEAFLOW_DOMAIN}/dashboard",
-            f"{LEAFLOW_DOMAIN}/profile",
-            f"{LEAFLOW_DOMAIN}/user",
-        ]
-
-        for url in test_urls:
-            if DEBUG_MODE:
-                print(f"  [DEBUG] 测试URL: {url}")
-
-            r = session.get(url, **kwargs)
-
-            if DEBUG_MODE:
-                print(f"  [DEBUG] 状态码: {r.status_code}, URL: {r.url}")
-
-            # 检查状态码200
-            if r.status_code == 200:
-                content = r.text.lower()
-                # 检查登录标识
-                login_indicators = ['dashboard', 'profile', 'user', 'logout', 'welcome', '签到', 'checkin']
-                if any(indicator in content for indicator in login_indicators):
-                    if DEBUG_MODE:
-                        print(f"  [DEBUG] 认证成功，在 {url} 检测到登录标识")
-                    return True, "认证有效"
-
-            # 检查重定向（301, 302, 303）
-            elif r.status_code in [301, 302, 303]:
-                location = r.headers.get('location', '')
-                if 'login' not in location.lower():
-                    if DEBUG_MODE:
-                        print(f"  [DEBUG] 认证成功（重定向到非登录页）")
-                    return True, "认证有效（重定向）"
-
-        return False, "所有认证测试均未通过"
-
-    except requests.exceptions.Timeout:
-        return False, f"认证测试超时（{TIMEOUT}秒）"
-    except requests.exceptions.ConnectionError as e:
-        return False, f"连接失败: {str(e)[:80]}"
-    except Exception as e:
-        return False, f"认证测试异常: {str(e)[:80]}"
-
 def get_user_balance_info(session) -> tuple[dict, str]:
     """
     获取用户余额和账户信息 - 通过API接口
@@ -363,12 +309,14 @@ def parse_result(html: str) -> tuple[str, str, float]:
 def sign_once_impl(session) -> tuple[str, str, float]:
     """
     使用已构建的 session 执行签到
+    优化：先访问签到主页预热并检测是否已签到，未签到才执行POST请求
     """
     try:
         kwargs = {"timeout": TIMEOUT, "allow_redirects": True}
         if USE_CURL_CFFI:
             kwargs["impersonate"] = "chrome120"
 
+        # 步骤1：访问签到主页（预热session，刷新XSRF-TOKEN，获取CSRF token）
         r1 = session.get(f"{BASE}/", **kwargs)
 
         if "login" in r1.url.lower():
@@ -385,6 +333,13 @@ def sign_once_impl(session) -> tuple[str, str, float]:
         if any(x in html1 for x in ["请登录", "未登录"]):
             return "invalid", "页面提示未登录", 0
 
+        # 步骤2：预检是否已签到（避免不必要的POST请求）
+        status_precheck, msg_precheck, amount_precheck = parse_result(html1)
+        if status_precheck == "already":
+            # 已签到，直接返回，无需POST
+            return status_precheck, msg_precheck, amount_precheck
+
+        # 步骤3：未签到，准备CSRF token并执行POST签到请求
         form_data = {"checkin": ""}
         form_data.update(extract_csrf(html1))
 
@@ -402,6 +357,7 @@ def sign_once_impl(session) -> tuple[str, str, float]:
         html2 = r2.text or ""
         status, msg, amount = parse_result(html2)
 
+        # 步骤4：如果POST后状态不明确，再次访问首页确认
         if status == "unknown" or (status == "success" and amount == 0):
             time.sleep(1)
             r3 = session.get(f"{BASE}/", **kwargs)
