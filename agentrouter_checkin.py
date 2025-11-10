@@ -563,133 +563,77 @@ class LinuxDoAuthenticator(BaseAuthenticator):
                         await login_button.click()
 
                         # --- 开始重构的智能等待逻辑 ---
-                        print(f"⏳ [{self.account_name}] 等待登录处理...")
-                        await popup_page.wait_for_timeout(2000)
+                        print(f"⏳ [{self.account_name}] 等待登录后跳转或Cloudflare验证...")
 
-                        # 立即检查是否出现Cloudflare验证（登录时经常触发）
-                        print(f"🔍 [{self.account_name}] 检查登录时的Cloudflare验证...")
-                        cf_login_handled = False
-                        for check_attempt in range(5):  # 检查5次，每次间隔1秒
+                        start_time = time.time()
+                        login_success = False
+                        last_log_time = 0
+
+                        while time.time() - start_time < 45:  # 45秒总超时
+                            # 1. 检查是否成功导航
+                            if "/login" not in popup_page.url:
+                                print(f"✅ [{self.account_name}] 登录成功，已跳转: {popup_page.url}")
+                                login_success = True
+                                break
+
+                            # 2. 检查并处理Cloudflare Turnstile
                             try:
-                                frames = popup_page.frames
-                                cf_frame = None
-                                for frame in frames:
-                                    frame_url = frame.url
-                                    if 'cloudflare' in frame_url or 'turnstile' in frame_url or 'challenges' in frame_url:
-                                        cf_frame = frame
-                                        print(f"✅ [{self.account_name}] 登录时检测到Cloudflare验证 (检查{check_attempt+1}/5)")
-                                        break
-
-                                if cf_frame:
-                                    # 立即尝试点击
-                                    print(f"🤖 [{self.account_name}] 尝试点击Cloudflare验证...")
-                                    try:
-                                        # 等待iframe稳定
-                                        await popup_page.wait_for_timeout(500)
-
-                                        # 滚动页面确保 iframe 可见
-                                        try:
-                                            await popup_page.evaluate('window.scrollTo(0, document.body.scrollHeight / 2)')
-                                            await popup_page.wait_for_timeout(300)
-                                        except:
-                                            pass
-
-                                        # 直接在 iframe 内部点击（使用 JavaScript）
-                                        try:
-                                            # 方法1: 尝试直接执行点击
-                                            await cf_frame.evaluate('''() => {
-                                                const checkbox = document.querySelector('input[type="checkbox"]');
-                                                if (checkbox) {
-                                                    checkbox.click();
-                                                    return true;
-                                                }
-                                                // 如果没有 checkbox，点击 body
-                                                document.body.click();
-                                                return true;
-                                            }''')
-                                            print(f"✅ [{self.account_name}] Cloudflare验证点击成功（JS方式）")
-                                            cf_login_handled = True
-                                            break
-                                        except Exception as js_err:
-                                            # 方法2: 使用 Playwright 点击
-                                            checkbox = await cf_frame.query_selector('input[type="checkbox"], body, div')
-                                            if checkbox:
-                                                await checkbox.click(timeout=5000, force=True)
-                                                print(f"✅ [{self.account_name}] Cloudflare验证点击成功")
-                                                cf_login_handled = True
-                                                break
-                                    except Exception as e:
-                                        print(f"⚠️ [{self.account_name}] Cloudflare点击失败: {str(e)[:100]}")
-                                else:
-                                    # 没有CF验证，检查是否已经跳转
-                                    if not popup_page.url.endswith("/login"):
-                                        print(f"ℹ️ [{self.account_name}] 无需Cloudflare验证，已开始跳转")
-                                        break
-                            except Exception as e:
+                                cf_iframe_locator = popup_page.frame_locator('iframe[src*="challenges.cloudflare.com"]')
+                                if await cf_iframe_locator.is_visible(timeout=1000):
+                                    print(f"🤖 [{self.account_name}] 检测到Cloudflare验证，尝试处理...")
+                                    checkbox = cf_iframe_locator.locator('input[type="checkbox"]')
+                                    if await checkbox.is_visible(timeout=2000):
+                                        await checkbox.click(timeout=5000, force=True)
+                                        print(f"✅ [{self.account_name}] Cloudflare复选框点击成功。")
+                                    else:
+                                        # 如果没有复选框，尝试点击iframe的body
+                                        await cf_iframe_locator.locator('body').click(timeout=5000, force=True)
+                                        print(f"✅ [{self.account_name}] Cloudflare iframe body点击成功。")
+                                    
+                                    print(f"⏳ [{self.account_name}] Cloudflare处理完毕，等待页面响应...")
+                                    await popup_page.wait_for_timeout(3000)  # 等待验证结果
+                                    continue  # 继续循环，检查是否已跳转
+                            except Exception:
+                                # 忽略查找iframe的超时错误，因为它可能尚未出现
                                 pass
 
-                            await popup_page.wait_for_timeout(1000)
+                            # 3. 检查错误提示
+                            try:
+                                error_el = await popup_page.query_selector('.alert-error, #modal-alert, .error, [role="alert"]')
+                                if error_el and await error_el.is_visible(timeout=500):
+                                    error_text = await error_el.inner_text()
+                                    if error_text and error_text.strip():
+                                        print(f"❌ [{self.account_name}] 检测到登录错误: {error_text.strip()}")
+                                        return {"success": False, "error": f"登录失败: {error_text.strip()}"}
+                            except Exception:
+                                pass
 
-                        if cf_login_handled:
-                            # 验证完成后等待跳转
-                            print(f"⏳ [{self.account_name}] Cloudflare验证完成，等待跳转...")
-                            await popup_page.wait_for_timeout(3000)
-                        else:
-                            print(f"ℹ️ [{self.account_name}] 未检测到Cloudflare或自动通过")
-
-                        # 等待URL变化（从/login跳转到授权页面）
-                        print(f"⏳ [{self.account_name}] 等待跳转到授权页面...")
-                        try:
-                            # 等待URL不再是/login
-                            for i in range(30):  # 最多等待30秒
-                                current_url_check = popup_page.url
-                                if current_url_check.endswith("/login"):
-                                    # 每3秒检查一次登录按钮状态和错误提示
-                                    if i % 3 == 0 and i > 0:
-                                        try:
-                                            # 检查登录按钮是否还在加载中
-                                            login_btn_check = await popup_page.query_selector('button.is-loading')
-                                            if login_btn_check:
-                                                btn_text = await login_btn_check.inner_text()
-                                                print(f"   登录中... ({i}s) 按钮状态: {btn_text.strip()}")
-
-                                            # 检查是否有错误提示
-                                            error_el = await popup_page.query_selector('.alert-error, #modal-alert, .error, [role="alert"]')
-                                            if error_el:
-                                                is_visible = await error_el.is_visible()
-                                                if is_visible:
-                                                    error_text = await error_el.inner_text()
-                                                    if error_text.strip():
-                                                        print(f"❌ [{self.account_name}] 检测到错误提示: {error_text.strip()}")
-                                                        return {"success": False, "error": f"登录失败: {error_text.strip()}"}
-                                        except:
-                                            pass
-                                    await popup_page.wait_for_timeout(1000)
-                                else:
-                                    print(f"✅ [{self.account_name}] 已跳转: {current_url_check}")
-                                    break
-                            else:
-                                print(f"⚠️ [{self.account_name}] 等待跳转超时，仍在登录页")
-                                # 最后检查一次登录按钮和错误信息
+                            # 4. 定期打印等待状态
+                            elapsed = int(time.time() - start_time)
+                            if elapsed > 3 and elapsed - last_log_time >= 5:
+                                last_log_time = elapsed
                                 try:
-                                    login_btn_final = await popup_page.query_selector('button[id="login-button"]')
-                                    if login_btn_final:
-                                        btn_text = await login_btn_final.inner_text()
-                                        btn_class = await login_btn_final.get_attribute('class')
-                                        print(f"   最终按钮状态: '{btn_text.strip()}' | class='{btn_class}'")
+                                    login_btn_check = await popup_page.query_selector('button.is-loading')
+                                    if login_btn_check:
+                                        print(f"   登录按钮仍在加载中... ({elapsed}s)")
+                                    else:
+                                        print(f"   等待跳转中... ({elapsed}s)")
+                                except Exception:
+                                    print(f"   等待页面响应... ({elapsed}s)")
 
-                                    error_el = await popup_page.query_selector('.alert-error, #modal-alert, .error, [role="alert"]')
-                                    if error_el:
-                                        is_visible = await error_el.is_visible()
-                                        if is_visible:
-                                            error_text = await error_el.inner_text()
-                                            if error_text.strip():
-                                                print(f"❌ [{self.account_name}] 错误提示: {error_text.strip()}")
-                                                return {"success": False, "error": f"登录失败: {error_text.strip()}"}
-                                except:
-                                    pass
-                        except Exception as e:
-                            print(f"⚠️ [{self.account_name}] 等待跳转异常: {e}")
+                            await popup_page.wait_for_timeout(1000)  # 轮询间隔
+
+                        if not login_success:
+                            print(f"⚠️ [{self.account_name}] 登录超时（45秒），页面可能卡住。")
+                            try:
+                                login_btn_final = await popup_page.query_selector('button[id="login-button"]')
+                                if login_btn_final:
+                                    btn_text = await login_btn_final.inner_text()
+                                    btn_class = await login_btn_final.get_attribute('class')
+                                    print(f"   最终按钮状态: '{btn_text.strip()}' | class='{btn_class}'")
+                            except:
+                                pass
+                            return {"success": False, "error": "登录超时，未能跳转或完成验证"}
 
                         print(f"✅ [{self.account_name}] Linux.do 登录流程完成")
 
