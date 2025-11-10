@@ -12,9 +12,9 @@ if sys.platform == "win32":
 cron "0 9 * * *" script-path=agentrouter_checkin.py,tag=AgentRouter签到
 new Env('AgentRouter签到')
 
-AgentRouter 自动签到青龙脚本 - 重构版
+AgentRouter 自动签到青龙脚本
 通过浏览器自动化登录完成签到(签到在登录时触发)
-支持: cookies、邮箱、GitHub、Linux.do 四种认证方式
+仅支持 Linux.do OAuth 认证方式
 """
 
 import asyncio
@@ -30,9 +30,7 @@ from typing import Dict, List, Optional, Tuple
 # 导入 Playwright
 try:
     from playwright.async_api import async_playwright, Page, BrowserContext
-    HAS_PLAYWRIGHT = True
 except ImportError:
-    HAS_PLAYWRIGHT = False
     print("❌ 未安装 Playwright，无法使用浏览器自动化")
     print("   安装方法：pip install playwright && playwright install chromium")
     sys.exit(1)
@@ -40,9 +38,7 @@ except ImportError:
 # 导入 httpx (异步HTTP客户端)
 try:
     import httpx
-    HAS_HTTPX = True
 except ImportError:
-    HAS_HTTPX = False
     print("❌ 未安装 httpx，无法进行API请求")
     print("   安装方法：pip install httpx")
     sys.exit(1)
@@ -84,32 +80,6 @@ KEY_COOKIE_NAMES = ["session", "sessionid", "token", "auth", "jwt"]
 # WAF Cookie名称
 WAF_COOKIE_NAMES = ["acw_tc", "cdn_sec_tc", "acw_sc__v2"]
 
-# 邮箱输入框选择器
-EMAIL_INPUT_SELECTORS = [
-    'input[type="email"]',
-    'input[name="email"]',
-    'input[name="username"]',
-    'input[name="account"]',
-    'input[id*="email" i]',
-    'input[placeholder*="邮箱" i]',
-    'input[placeholder*="Email" i]',
-]
-
-# 登录按钮选择器
-LOGIN_BUTTON_SELECTORS = [
-    'button[type="submit"]',
-    'button:has-text("登录")',
-    'button:has-text("Login")',
-]
-
-# GitHub 登录按钮选择器
-GITHUB_BUTTON_SELECTORS = [
-    'button:has-text("GitHub")',
-    'a:has-text("GitHub")',
-    'text=使用 GitHub',
-    'a[href*="github.com"]',
-]
-
 # Linux.do 登录按钮选择器
 LINUXDO_BUTTON_SELECTORS = [
     'button:has-text("LinuxDO")',
@@ -136,13 +106,6 @@ def safe_send_notify(title: str, content: str) -> bool:
     except Exception as e:
         print(f"❌ 通知推送失败: {e}")
         return False
-
-
-def get_domain(url: str) -> str:
-    """从 URL 提取域名"""
-    from urllib.parse import urlparse
-    parsed = urlparse(url)
-    return parsed.netloc
 
 
 # ==================== 认证器类 ====================
@@ -186,275 +149,6 @@ class BaseAuthenticator:
         except Exception as e:
             print(f"⚠️ [{self.account_name}] 提取用户信息失败: {e}")
         return None, None
-
-
-class CookiesAuthenticator(BaseAuthenticator):
-    """Cookies 认证"""
-
-    async def authenticate(self, page: Page, context: BrowserContext) -> Dict:
-        try:
-            print(f"🍪 [{self.account_name}] 使用 Cookies 认证...")
-
-            cookies = self.auth_config.get("cookies", {})
-            if not cookies:
-                return {"success": False, "error": "未提供 cookies"}
-
-            # 转换为 Playwright 格式
-            cookie_list = []
-            for name, value in cookies.items():
-                cookie_list.append({
-                    "name": name,
-                    "value": value,
-                    "domain": get_domain(BASE_URL),
-                    "path": "/"
-                })
-
-            await context.add_cookies(cookie_list)
-
-            # 验证 cookies
-            await page.goto(USER_INFO_URL, wait_until="domcontentloaded", timeout=PAGE_LOAD_TIMEOUT)
-            await page.wait_for_timeout(1000)
-
-            # 检查是否跳转到登录页
-            if "login" in page.url.lower():
-                return {"success": False, "error": "Cookies 已过期"}
-
-            # 获取最新 cookies
-            final_cookies = await context.cookies()
-            cookies_dict = {cookie["name"]: cookie["value"] for cookie in final_cookies}
-
-            # 提取用户信息
-            user_id, username = await self._extract_user_info(cookies_dict)
-
-            print(f"✅ [{self.account_name}] Cookies 认证成功")
-            return {
-                "success": True,
-                "cookies": cookies_dict,
-                "user_id": user_id,
-                "username": username
-            }
-
-        except Exception as e:
-            return {"success": False, "error": f"Cookies 认证失败: {str(e)}"}
-
-
-class EmailAuthenticator(BaseAuthenticator):
-    """邮箱密码认证"""
-
-    async def authenticate(self, page: Page, context: BrowserContext) -> Dict:
-        try:
-            email = self.auth_config.get("email")
-            password = self.auth_config.get("password")
-
-            if not email or not password:
-                return {"success": False, "error": "未提供邮箱或密码"}
-
-            print(f"📧 [{self.account_name}] 使用邮箱认证: {email}")
-
-            # 访问登录页
-            await page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=PAGE_LOAD_TIMEOUT)
-            await page.wait_for_timeout(1500)
-
-            # 关闭可能的弹窗
-            await self._close_popups(page)
-
-            # 点击邮箱登录选项
-            await self._find_and_click_email_tab(page)
-            await page.wait_for_timeout(1000)
-
-            # 查找邮箱输入框
-            email_input = None
-            for selector in EMAIL_INPUT_SELECTORS:
-                try:
-                    email_input = await page.query_selector(selector)
-                    if email_input:
-                        print(f"✅ [{self.account_name}] 找到邮箱输入框: {selector}")
-                        break
-                except:
-                    continue
-
-            if not email_input:
-                return {"success": False, "error": "未找到邮箱输入框"}
-
-            # 查找密码输入框
-            password_input = await page.query_selector('input[type="password"]')
-            if not password_input:
-                return {"success": False, "error": "未找到密码输入框"}
-
-            # 填写表单
-            await email_input.fill(email)
-            await password_input.fill(password)
-
-            # 查找并点击登录按钮
-            login_button = None
-            for selector in LOGIN_BUTTON_SELECTORS:
-                try:
-                    login_button = await page.query_selector(selector)
-                    if login_button:
-                        break
-                except:
-                    continue
-
-            if not login_button:
-                return {"success": False, "error": "未找到登录按钮"}
-
-            print(f"🔑 [{self.account_name}] 点击登录按钮...")
-            await login_button.click()
-
-            # 等待登录完成
-            try:
-                await page.wait_for_load_state("networkidle", timeout=10000)
-                await page.wait_for_timeout(2000)
-            except:
-                print(f"⚠️ [{self.account_name}] 页面加载超时，继续检查...")
-
-            # 检查登录结果
-            success, error_msg = await self._check_login_success(page)
-            if not success:
-                return {"success": False, "error": error_msg}
-
-            # 获取 cookies
-            final_cookies = await context.cookies()
-            cookies_dict = {cookie["name"]: cookie["value"] for cookie in final_cookies}
-
-            # 提取用户信息
-            user_id, username = await self._extract_user_info(cookies_dict)
-
-            print(f"✅ [{self.account_name}] 邮箱认证成功")
-            return {
-                "success": True,
-                "cookies": cookies_dict,
-                "user_id": user_id,
-                "username": username
-            }
-
-        except Exception as e:
-            return {"success": False, "error": f"邮箱认证失败: {str(e)}"}
-
-    async def _close_popups(self, page: Page):
-        """关闭可能的弹窗"""
-        try:
-            await page.keyboard.press('Escape')
-            await page.wait_for_timeout(300)
-        except:
-            pass
-
-    async def _find_and_click_email_tab(self, page: Page):
-        """查找并点击邮箱登录选项"""
-        for selector in ['button:has-text("邮箱")', 'a:has-text("邮箱")', 'button:has-text("Email")']:
-            try:
-                element = await page.query_selector(selector)
-                if element:
-                    await element.click()
-                    return True
-            except:
-                continue
-        return False
-
-    async def _check_login_success(self, page: Page) -> Tuple[bool, Optional[str]]:
-        """检查登录是否成功"""
-        current_url = page.url
-
-        # URL 变化检查
-        if "login" not in current_url.lower():
-            return True, None
-
-        # 检查错误提示
-        error_selectors = ['.error', '.alert-danger', '[class*="error"]']
-        for selector in error_selectors:
-            try:
-                error_element = await page.query_selector(selector)
-                if error_element:
-                    error_text = await error_element.inner_text()
-                    if error_text and ("失败" in error_text.lower() or "error" in error_text.lower()):
-                        return False, f"登录失败: {error_text}"
-            except:
-                pass
-
-        # 仍在登录页
-        if "login" in current_url.lower():
-            return False, "登录失败 - 仍在登录页面"
-
-        return True, None
-
-
-class GitHubAuthenticator(BaseAuthenticator):
-    """GitHub OAuth 认证"""
-
-    async def authenticate(self, page: Page, context: BrowserContext) -> Dict:
-        try:
-            username = self.auth_config.get("username")
-            password = self.auth_config.get("password")
-
-            if not username or not password:
-                return {"success": False, "error": "未提供用户名或密码"}
-
-            print(f"🐙 [{self.account_name}] 使用 GitHub 认证: {username}")
-
-            # 访问登录页
-            await page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=PAGE_LOAD_TIMEOUT)
-            await page.wait_for_timeout(1500)
-
-            # 查找 GitHub 登录按钮
-            github_button = None
-            for selector in GITHUB_BUTTON_SELECTORS:
-                try:
-                    github_button = await page.query_selector(selector)
-                    if github_button:
-                        print(f"✅ [{self.account_name}] 找到 GitHub 登录按钮: {selector}")
-                        break
-                except:
-                    continue
-
-            if not github_button:
-                return {"success": False, "error": "未找到 GitHub 登录按钮"}
-
-            await github_button.click()
-            await page.wait_for_load_state("networkidle", timeout=15000)
-
-            # 如果跳转到 GitHub
-            if "github.com" in page.url:
-                # 填写登录表单
-                username_input = await page.query_selector('input[name="login"]')
-                password_input = await page.query_selector('input[name="password"]')
-
-                if username_input and password_input:
-                    await username_input.fill(username)
-                    await password_input.fill(password)
-
-                    # 提交登录
-                    submit_button = await page.query_selector('input[type="submit"]')
-                    if submit_button:
-                        await submit_button.click()
-                        await page.wait_for_load_state("networkidle", timeout=15000)
-
-                # 点击授权按钮（如果有）
-                authorize_button = await page.query_selector('button[name="authorize"]')
-                if authorize_button:
-                    await authorize_button.click()
-                    await page.wait_for_load_state("networkidle", timeout=10000)
-
-            # 等待回调
-            target_pattern = re.compile(rf"^{re.escape(BASE_URL)}.*")
-            await page.wait_for_url(target_pattern, timeout=20000)
-
-            # 获取 cookies
-            final_cookies = await context.cookies()
-            cookies_dict = {cookie["name"]: cookie["value"] for cookie in final_cookies}
-
-            # 提取用户信息
-            user_id, user_name = await self._extract_user_info(cookies_dict)
-
-            print(f"✅ [{self.account_name}] GitHub 认证成功")
-            return {
-                "success": True,
-                "cookies": cookies_dict,
-                "user_id": user_id,
-                "username": user_name
-            }
-
-        except Exception as e:
-            return {"success": False, "error": f"GitHub 认证失败: {str(e)}"}
 
 
 class LinuxDoAuthenticator(BaseAuthenticator):
@@ -563,11 +257,14 @@ class LinuxDoAuthenticator(BaseAuthenticator):
                         await login_button.click()
 
                         # --- 开始重构的智能等待逻辑 ---
-                        print(f"⏳ [{self.account_name}] 等待登录后跳转或Cloudflare验证...")
+                        print(f"⏳ [{self.account_name}] 已点击登录，等待页面响应...")
+                        await popup_page.wait_for_timeout(3000)  # 等待3秒，给CF脚本加载时间
+                        print(f"⏳ [{self.account_name}] 开始检查跳转或Cloudflare验证...")
 
                         start_time = time.time()
                         login_success = False
                         last_log_time = 0
+                        second_click_done = False # 用于二次点击的标志
 
                         while time.time() - start_time < 45:  # 45秒总超时
                             # 1. 检查是否成功导航
@@ -579,36 +276,39 @@ class LinuxDoAuthenticator(BaseAuthenticator):
                             # 2. 检查并处理Cloudflare Turnstile
                             try:
                                 cf_iframe_locator = popup_page.frame_locator('iframe[src*="challenges.cloudflare.com"]')
-                                if await cf_iframe_locator.is_visible(timeout=1000):
+                                if await cf_iframe_locator.is_visible(timeout=500):
                                     print(f"🤖 [{self.account_name}] 检测到Cloudflare验证，尝试处理...")
-                                    checkbox = cf_iframe_locator.locator('input[type="checkbox"]')
-                                    if await checkbox.is_visible(timeout=2000):
-                                        await checkbox.click(timeout=5000, force=True)
-                                        print(f"✅ [{self.account_name}] Cloudflare复选框点击成功。")
-                                    else:
-                                        # 如果没有复选框，尝试点击iframe的body
-                                        await cf_iframe_locator.locator('body').click(timeout=5000, force=True)
-                                        print(f"✅ [{self.account_name}] Cloudflare iframe body点击成功。")
-                                    
-                                    print(f"⏳ [{self.account_name}] Cloudflare处理完毕，等待页面响应...")
-                                    await popup_page.wait_for_timeout(3000)  # 等待验证结果
-                                    continue  # 继续循环，检查是否已跳转
+                                    await cf_iframe_locator.locator('body').click(timeout=3000, force=True)
+                                    print(f"✅ [{self.account_name}] Cloudflare iframe body点击成功。")
+                                    await popup_page.wait_for_timeout(2000)
+                                    continue
                             except Exception:
-                                # 忽略查找iframe的超时错误，因为它可能尚未出现
                                 pass
 
-                            # 3. 检查错误提示
+                            # 3. 增强的错误提示检查
                             try:
+                                # a) 基于类的选择器
                                 error_el = await popup_page.query_selector('.alert-error, #modal-alert, .error, [role="alert"]')
                                 if error_el and await error_el.is_visible(timeout=500):
                                     error_text = await error_el.inner_text()
                                     if error_text and error_text.strip():
-                                        print(f"❌ [{self.account_name}] 检测到登录错误: {error_text.strip()}")
+                                        print(f"❌ [{self.account_name}] 检测到登录错误 (by class): {error_text.strip()}")
                                         return {"success": False, "error": f"登录失败: {error_text.strip()}"}
+                                
+                                # b) 基于文本的模式匹配
+                                error_patterns = ["密码不正确", "用户不存在", "凭据无效", "Invalid", "Incorrect", "failed"]
+                                for pattern in error_patterns:
+                                    error_locator = popup_page.locator(f'text=/{pattern}/i')
+                                    if await error_locator.count() > 0:
+                                        first_match = error_locator.first
+                                        if await first_match.is_visible(timeout=500):
+                                            error_text = await first_match.inner_text()
+                                            print(f"❌ [{self.account_name}] 检测到文本错误 (by text): {error_text.strip()}")
+                                            return {"success": False, "error": f"登录失败: {error_text.strip()}"}
                             except Exception:
                                 pass
 
-                            # 4. 定期打印等待状态
+                            # 4. 定期打印等待状态 和 执行二次点击
                             elapsed = int(time.time() - start_time)
                             if elapsed > 3 and elapsed - last_log_time >= 5:
                                 last_log_time = elapsed
@@ -617,22 +317,29 @@ class LinuxDoAuthenticator(BaseAuthenticator):
                                     if login_btn_check:
                                         print(f"   登录按钮仍在加载中... ({elapsed}s)")
                                     else:
-                                        print(f"   等待跳转中... ({elapsed}s)")
+                                        # 二次点击逻辑
+                                        if not second_click_done:
+                                            print(f"💡 [{self.account_name}] 登录按钮未加载，尝试二次点击...")
+                                            try:
+                                                login_button_again = await popup_page.query_selector('button[id="login-button"]')
+                                                if login_button_again and await login_button_again.is_enabled():
+                                                    await login_button_again.click()
+                                                    second_click_done = True
+                                                    print(f"✅ [{self.account_name}] 第二次点击完成。")
+                                                    await popup_page.wait_for_timeout(2000) # 等待二次点击后的响应
+                                                else:
+                                                    print(f"   无法进行二次点击（按钮不存在或不可用）。")
+                                            except Exception as e:
+                                                print(f"⚠️ [{self.account_name}] 第二次点击失败: {e}")
+                                        else:
+                                            print(f"   等待跳转中... ({elapsed}s)")
                                 except Exception:
                                     print(f"   等待页面响应... ({elapsed}s)")
 
                             await popup_page.wait_for_timeout(1000)  # 轮询间隔
 
                         if not login_success:
-                            print(f"⚠️ [{self.account_name}] 登录超时（45秒），页面可能卡住。")
-                            try:
-                                login_btn_final = await popup_page.query_selector('button[id="login-button"]')
-                                if login_btn_final:
-                                    btn_text = await login_btn_final.inner_text()
-                                    btn_class = await login_btn_final.get_attribute('class')
-                                    print(f"   最终按钮状态: '{btn_text.strip()}' | class='{btn_class}'")
-                            except:
-                                pass
+                            print(f"⚠️ [{self.account_name}] 登录���时（45秒），页面可能卡住。")
                             return {"success": False, "error": "登录超时，未能跳转或完成验证"}
 
                         print(f"✅ [{self.account_name}] Linux.do 登录流程完成")
@@ -772,31 +479,17 @@ class LinuxDoAuthenticator(BaseAuthenticator):
                     authorize_button = None
 
                 if not authorize_button:
-                    # 调试：保存页面截图和HTML
-                    try:
-                        screenshot_path = f"authorize_page_{self.account_name}.png"
-                        await popup_page.screenshot(path=screenshot_path)
-                        print(f"📸 [{self.account_name}] 已保存授权页面截图: {screenshot_path}")
-
-                        # 保存HTML用于调试
-                        html_content = await popup_page.content()
-                        html_path = f"authorize_page_{self.account_name}.html"
-                        with open(html_path, 'w', encoding='utf-8') as f:
-                            f.write(html_content)
-                        print(f"📄 [{self.account_name}] 已保存授权页面HTML: {html_path}")
-                    except:
-                        pass
                     print(f"⚠️ [{self.account_name}] 可能已自动授权，继续等待回调...")
 
-            # 步骤7: 切换回原窗口，等待回调到AgentRouter
-            print(f"🔄 [{self.account_name}] 切换回原窗口，等待OAuth回调...")
+            # 步骤7: 在popup窗口等待OAuth回调到AgentRouter
+            print(f"🔄 [{self.account_name}] 等待popup窗口OAuth回调...")
             try:
-                # 在原窗口等待回调到 agentrouter.org
+                # 在popup窗口等待回调到 agentrouter.org
                 target_pattern = re.compile(rf"^{re.escape(BASE_URL)}.*")
-                await page.wait_for_url(target_pattern, timeout=25000)
+                await popup_page.wait_for_url(target_pattern, timeout=25000)
 
-                callback_url = page.url
-                print(f"✅ [{self.account_name}] OAuth回调成功: {callback_url}")
+                callback_url = popup_page.url
+                print(f"✅ [{self.account_name}] OAuth回调成功（popup窗口）: {callback_url}")
 
                 # 检查回调URL
                 if "/console/token" in callback_url:
@@ -806,10 +499,10 @@ class LinuxDoAuthenticator(BaseAuthenticator):
                 else:
                     print(f"⚠️ [{self.account_name}] 回调URL不是预期的: {callback_url}")
 
-                # 等待页面完全加载（签到在此时自动触发）
+                # 在popup窗口等待页面完全加载（签到在此时自动触发）
                 print(f"⏳ [{self.account_name}] 等待页面加载完成（签到会自动触发）...")
-                await page.wait_for_load_state("networkidle", timeout=20000)
-                await page.wait_for_timeout(3000)
+                await popup_page.wait_for_load_state("networkidle", timeout=20000)
+                await popup_page.wait_for_timeout(3000)
                 print(f"✅ [{self.account_name}] 页面加载完成，签到已自动完成")
 
             except Exception as e:
@@ -865,79 +558,54 @@ class AgentRouterCheckIn:
         print(f"📝 [{self.account_name}] 开始签到")
         print(f"{'='*60}")
 
-        # 尝试所有认证方式
-        auth_methods = self._parse_auth_methods()
-
-        if not auth_methods:
+        # 检查 Linux.do 认证配置
+        if "linux.do" not in self.account_config:
             return {
                 "success": False,
                 "account": self.account_name,
-                "error": "未配置任何认证方式"
+                "error": "未配置 Linux.do 认证"
             }
 
-        async with async_playwright() as playwright:
-            for auth_type, auth_config in auth_methods:
-                print(f"\n🔐 [{self.account_name}] 尝试 {auth_type} 认证...")
-
-                try:
-                    result = await self._checkin_with_auth(playwright, auth_type, auth_config)
-                    if result["success"]:
-                        return result
-                    else:
-                        print(f"❌ [{self.account_name}] {auth_type} 认证失败: {result.get('error')}")
-                except Exception as e:
-                    print(f"❌ [{self.account_name}] {auth_type} 认证异常: {str(e)}")
-
-        # 所有认证方式都失败
-        return {
-            "success": False,
-            "account": self.account_name,
-            "error": "所有认证方式都失败"
+        linuxdo_config = self.account_config["linux.do"]
+        auth_config = {
+            "username": linuxdo_config.get("username"),
+            "password": linuxdo_config.get("password")
         }
 
-    def _parse_auth_methods(self) -> List[Tuple[str, Dict]]:
-        """解析认证方式"""
-        methods = []
+        if not auth_config["username"] or not auth_config["password"]:
+            return {
+                "success": False,
+                "account": self.account_name,
+                "error": "Linux.do 用户名或密码未配置"
+            }
 
-        # Cookies 认证
-        if "cookies" in self.account_config and self.account_config["cookies"]:
-            methods.append(("cookies", {"cookies": self.account_config["cookies"]}))
+        # 执行 Linux.do 认证签到
+        print(f"\n🔐 [{self.account_name}] 尝试 linux.do 认证...")
 
-        # 邮箱认证
-        if "email" in self.account_config:
-            email_config = self.account_config["email"]
-            methods.append(("email", {
-                "email": email_config.get("username") or email_config.get("email"),
-                "password": email_config.get("password")
-            }))
-
-        # GitHub 认证
-        if "github" in self.account_config:
-            github_config = self.account_config["github"]
-            methods.append(("github", {
-                "username": github_config.get("username"),
-                "password": github_config.get("password")
-            }))
-
-        # Linux.do 认证
-        if "linux.do" in self.account_config:
-            linuxdo_config = self.account_config["linux.do"]
-            methods.append(("linux.do", {
-                "username": linuxdo_config.get("username"),
-                "password": linuxdo_config.get("password")
-            }))
-
-        return methods
+        async with async_playwright() as playwright:
+            try:
+                result = await self._checkin_with_auth(playwright, "linux.do", auth_config)
+                return result
+            except Exception as e:
+                print(f"❌ [{self.account_name}] Linux.do 认证异常: {str(e)}")
+                return {
+                    "success": False,
+                    "account": self.account_name,
+                    "error": f"Linux.do 认证异常: {str(e)}"
+                }
 
     async def _checkin_with_auth(self, playwright, auth_type: str, auth_config: Dict) -> Dict:
         """使用指定认证方式签到"""
+        effective_headless = BROWSER_HEADLESS
+
         with tempfile.TemporaryDirectory() as temp_dir:
             # 启动浏览器
             context = await playwright.chromium.launch_persistent_context(
                 user_data_dir=temp_dir,
-                headless=BROWSER_HEADLESS,
+                headless=effective_headless,
                 user_agent=DEFAULT_USER_AGENT,
                 viewport={"width": 1920, "height": 1080},
+                channel="msedge",  # 使用Edge浏览器以绕过Cloudflare检测（关键！）
                 args=[
                     "--disable-blink-features=AutomationControlled",
                     "--disable-dev-shm-usage",
@@ -1017,8 +685,8 @@ class AgentRouterCheckIn:
                 # 步骤1: 获取 WAF cookies
                 await self._get_waf_cookies(page, context)
 
-                # 步骤2: 执行认证
-                authenticator = self._get_authenticator(auth_type, auth_config)
+                # 步骤2: 执行 Linux.do 认证
+                authenticator = LinuxDoAuthenticator(self.account_name, auth_config)
                 auth_result = await authenticator.authenticate(page, context)
 
                 if not auth_result["success"]:
@@ -1071,19 +739,6 @@ class AgentRouterCheckIn:
             finally:
                 await page.close()
                 await context.close()
-
-    def _get_authenticator(self, auth_type: str, auth_config: Dict) -> BaseAuthenticator:
-        """获取认证器"""
-        if auth_type == "cookies":
-            return CookiesAuthenticator(self.account_name, auth_config)
-        elif auth_type == "email":
-            return EmailAuthenticator(self.account_name, auth_config)
-        elif auth_type == "github":
-            return GitHubAuthenticator(self.account_name, auth_config)
-        elif auth_type == "linux.do":
-            return LinuxDoAuthenticator(self.account_name, auth_config)
-        else:
-            raise ValueError(f"未知认证方式: {auth_type}")
 
     async def _get_waf_cookies(self, page: Page, context: BrowserContext):
         """获取 WAF cookies"""
