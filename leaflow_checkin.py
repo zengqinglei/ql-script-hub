@@ -105,7 +105,8 @@ def build_session(account_config):
         print(f"  [DEBUG] 解析到的 cookies: {list(account_config.keys())}")
 
     for name, value in account_config.items():
-        # 为cookie设置domain，确保在主站和签到子域都能使用
+        # 设置所有cookie（包括XSRF-TOKEN）
+        # 注意：XSRF-TOKEN可能过期导致首次请求423，但服务器会返回新token，重试即可成功
         s.cookies.set(name, value, domain='.leaflow.net')
 
     if PROXIES:
@@ -197,6 +198,61 @@ def extract_reward(html: str) -> float:
     if DEBUG_MODE:
         print("[DEBUG] 未匹配到任何金额")
     return 0
+
+def test_authentication(session, account_name: str) -> tuple[bool, str]:
+    """
+    测试 cookie 是否有效
+    尝试访问多个需要登录的页面进行验证
+    """
+    try:
+        kwargs = {"timeout": TIMEOUT, "allow_redirects": True}
+        if USE_CURL_CFFI:
+            kwargs["impersonate"] = "chrome120"
+
+        # 测试多个URL（优先访问签到页面，确保获取签到域的 XSRF-TOKEN）
+        test_urls = [
+            BASE,  # 签到页面（必须第一个访问，刷新签到域的 XSRF-TOKEN）
+            f"{LEAFLOW_DOMAIN}/dashboard",
+            f"{LEAFLOW_DOMAIN}/profile",
+            f"{LEAFLOW_DOMAIN}/user",
+        ]
+
+        for url in test_urls:
+            if DEBUG_MODE:
+                print(f"  [DEBUG] 测试URL: {url}")
+
+            r = session.get(url, **kwargs)
+
+            if DEBUG_MODE:
+                print(f"  [DEBUG] 状态码: {r.status_code}, URL: {r.url}")
+
+            # 检查状态码200
+            if r.status_code == 200:
+                content = r.text.lower()
+                # 检查登录标识
+                login_indicators = ['dashboard', 'profile', 'user', 'logout', 'welcome', '签到', 'checkin']
+                if any(indicator in content for indicator in login_indicators):
+                    if DEBUG_MODE:
+                        print(f"  [DEBUG] 认证成功，在 {url} 检测到登录标识")
+                    return True, "认证有效"
+
+            # 检查重定向（301, 302, 303）
+            elif r.status_code in [301, 302, 303]:
+                location = r.headers.get('location', '')
+                if 'login' not in location.lower():
+                    if DEBUG_MODE:
+                        print(f"  [DEBUG] 认证成功（重定向到非登录页）")
+                    return True, "认证有效（重定向）"
+
+        return False, "所有认证测试均未通过"
+
+    except requests.exceptions.Timeout:
+        return False, f"认证测试超时（{TIMEOUT}秒）"
+    except requests.exceptions.ConnectionError as e:
+        return False, f"连接失败: {str(e)[:80]}"
+    except Exception as e:
+        return False, f"认证测试异常: {str(e)[:80]}"
+
 def get_user_balance_info(session) -> tuple[dict, str]:
     """
     获取用户余额和账户信息 - 通过API接口
@@ -372,7 +428,7 @@ def sign_with_retry(account_config, name: str) -> tuple[str, str, float, dict]:
     except ValueError as e:
         return "error", f"Cookie 配置错误: {str(e)}", 0, {}
 
-    # 执行签到（带重试）
+    # 执行签到（带重试，首次可能423，重试时会使用服务器下发的新XSRF-TOKEN）
     status = "unknown"
     msg = ""
     amount = 0
