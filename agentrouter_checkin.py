@@ -598,13 +598,62 @@ class AgentRouterCheckIn:
         """使用指定认证方式签到"""
         effective_headless = BROWSER_HEADLESS
 
-        # 从 Regular-inspection 项目借鉴的浏览器启动参数
+        # 从 Regular-inspection 项目借鉴的高级反检测技术
         browser_launch_args = [
             "--disable-blink-features=AutomationControlled",
             "--disable-dev-shm-usage",
-            "--disable-web-security",  # 增加此参数以增强反检测
+            "--disable-web-security",
             "--no-sandbox",
+            "--disable-infobars",
+            "--disable-popup-blocking",
+            "--disable-notifications",
+            "--disable-extensions",
+            "--ignore-certificate-errors",
+            "--allow-running-insecure-content",
+            "--disable-gpu",
+            "--window-size=1920,1080",
         ]
+
+        # 更全面的Stealth脚本
+        stealth_script = """
+            Object.defineProperty(navigator, 'webdriver', {
+              get: () => undefined,
+            });
+
+            Object.defineProperty(navigator, 'languages', {
+              get: () => ['en-US', 'en'],
+            });
+
+            const originalQuery = window.navigator.permissions.query;
+            window.navigator.permissions.query = (parameters) => (
+              parameters.name === 'notifications' ?
+                Promise.resolve({ state: Notification.permission }) :
+                originalQuery(parameters)
+            );
+
+            Object.defineProperty(navigator, 'plugins', {
+              get: () => [
+                { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
+                { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai', description: '' },
+                { name: 'Native Client', filename: 'internal-nacl-plugin', description: '' },
+              ],
+            });
+
+            try {
+                const getParameter = WebGLRenderingContext.prototype.getParameter;
+                WebGLRenderingContext.prototype.getParameter = function(parameter) {
+                    if (parameter === 37445) { // UNMASKED_VENDOR_WEBGL
+                        return 'Intel Open Source Technology Center';
+                    }
+                    if (parameter === 37446) { // UNMASKED_RENDERER_WEBGL
+                        return 'Mesa DRI Intel(R) Ivybridge Mobile ';
+                    }
+                    return getParameter(parameter);
+                };
+            } catch (e) {
+                // console.error(e);
+            }
+        """
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # 启动浏览器
@@ -613,15 +662,16 @@ class AgentRouterCheckIn:
                 headless=effective_headless,
                 user_agent=DEFAULT_USER_AGENT,
                 viewport={"width": 1920, "height": 1080},
-                channel="chrome",  # 根据要求切换回 Chrome
+                channel="chrome",  # 切换回 Chrome
                 args=browser_launch_args,
+                java_script_enabled=True,
             )
 
             page = await context.new_page()
 
-            # 注入stealth脚本，移除navigator.webdriver标志
-            await page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-            print(f"🕵️ [{self.account_name}] 已注入Stealth脚本以增强反检测能力")
+            # 注入stealth脚本
+            await page.add_init_script(stealth_script)
+            print(f"🕵️ [{self.account_name}] 已注入高级Stealth脚本以增强反检测能力")
 
             # 用于捕获签到信息
             checkin_info = {"found": False, "message": "", "reward": ""}
