@@ -598,6 +598,14 @@ class AgentRouterCheckIn:
         """使用指定认证方式签到"""
         effective_headless = BROWSER_HEADLESS
 
+        # 从 Regular-inspection 项目借鉴的浏览器启动参数
+        browser_launch_args = [
+            "--disable-blink-features=AutomationControlled",
+            "--disable-dev-shm-usage",
+            "--disable-web-security",  # 增加此参数以增强反检测
+            "--no-sandbox",
+        ]
+
         with tempfile.TemporaryDirectory() as temp_dir:
             # 启动浏览器
             context = await playwright.chromium.launch_persistent_context(
@@ -605,15 +613,15 @@ class AgentRouterCheckIn:
                 headless=effective_headless,
                 user_agent=DEFAULT_USER_AGENT,
                 viewport={"width": 1920, "height": 1080},
-                channel="msedge",  # 使用Edge浏览器以绕过Cloudflare检测（关键！）
-                args=[
-                    "--disable-blink-features=AutomationControlled",
-                    "--disable-dev-shm-usage",
-                    "--no-sandbox",
-                ],
+                channel="chrome",  # 根据要求切换回 Chrome
+                args=browser_launch_args,
             )
 
             page = await context.new_page()
+
+            # 注入stealth脚本，移除navigator.webdriver标志
+            await page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+            print(f"🕵️ [{self.account_name}] 已注入Stealth脚本以增强反检测能力")
 
             # 用于捕获签到信息
             checkin_info = {"found": False, "message": "", "reward": ""}
