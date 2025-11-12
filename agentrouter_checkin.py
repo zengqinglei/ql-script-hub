@@ -167,7 +167,9 @@ class LinuxDoAuthenticator(BaseAuthenticator):
             # 步骤1: 访问登录页
             print(f"🌐 [{self.account_name}] 访问登录页...")
             await page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=PAGE_LOAD_TIMEOUT)
-            await page.wait_for_timeout(1500)
+
+            # Docker环境需要更长等待时间让页面完全渲染
+            await page.wait_for_timeout(2000)
 
             # 关闭可能的弹窗
             try:
@@ -178,14 +180,19 @@ class LinuxDoAuthenticator(BaseAuthenticator):
 
             # 步骤2: 查找并点击"使用LinuxDO继续"按钮
             print(f"🔍 [{self.account_name}] 查找 LinuxDO 登录按钮...")
+
+            # 等待按钮出现（Docker环境可能较慢）
             linux_button = None
             for selector in LINUXDO_BUTTON_SELECTORS:
                 try:
+                    # 等待按钮出现，最多15秒
+                    await page.wait_for_selector(selector, timeout=15000, state="visible")
                     linux_button = await page.query_selector(selector)
                     if linux_button:
                         print(f"✅ [{self.account_name}] 找到 LinuxDO 登录按钮: {selector}")
                         break
                 except:
+                    # 这个选择器没找到，尝试下一个
                     continue
 
             if not linux_button:
