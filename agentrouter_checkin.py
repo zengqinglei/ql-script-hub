@@ -252,26 +252,40 @@ class LinuxDoAuthenticator(BaseAuthenticator):
                 if username_input and password_input:
                     print(f"✅ [{self.account_name}] 找到登录表单")
 
-                    # 模拟人类行为：先聚焦，然后逐字输入
-                    # 输入用户名（模拟真实打字）
-                    await username_input.click()
-                    await popup_page.wait_for_timeout(random.randint(300, 600))
-                    await username_input.type(username, delay=random.randint(50, 150))
+                    # 低配环境优化：使用fill()代替click()+type()，更快且资源消耗少
+                    try:
+                        # 填写用户名
+                        await username_input.fill(username, timeout=45000)
+                        await popup_page.wait_for_timeout(random.randint(300, 600))
 
-                    # 随机延迟后输入密码
-                    await popup_page.wait_for_timeout(random.randint(500, 1000))
-                    await password_input.click()
-                    await popup_page.wait_for_timeout(random.randint(200, 400))
-                    await password_input.type(password, delay=random.randint(50, 150))
+                        # 随机延迟后填写密码
+                        await popup_page.wait_for_timeout(random.randint(500, 1000))
+                        await password_input.fill(password, timeout=45000)
 
-                    # 输入完成后随机等待（模拟人类思考）
-                    await popup_page.wait_for_timeout(random.randint(800, 1500))
+                        # 输入完成后随机等待（模拟人类思考）
+                        await popup_page.wait_for_timeout(random.randint(800, 1500))
+                    except Exception as e:
+                        print(f"⚠️ [{self.account_name}] 填写表单失败: {e}")
+                        # 如果fill失败，尝试使用force点击+type
+                        try:
+                            await username_input.click(force=True, timeout=45000)
+                            await username_input.type(username, delay=100)
+                            await password_input.click(force=True, timeout=45000)
+                            await password_input.type(password, delay=100)
+                        except Exception as e2:
+                            print(f"❌ [{self.account_name}] 强制填写也失败: {e2}")
+                            return {"success": False, "error": f"填写登录表单失败: {str(e2)}"}
 
                     # 点击登录按钮
                     login_button = await popup_page.query_selector('button[id="login-button"]')
                     if login_button:
                         print(f"🔑 [{self.account_name}] 点击登录按钮...")
-                        await login_button.click()
+                        # 低配环境：增加超时时间，必要时强制点击
+                        try:
+                            await login_button.click(timeout=45000)
+                        except Exception as e:
+                            print(f"⚠️ [{self.account_name}] 登录按钮点击超时，尝试强制点击...")
+                            await login_button.click(force=True, timeout=45000)
 
                         # --- 开始重构的智能等待逻辑 ---
                         print(f"⏳ [{self.account_name}] 已点击登录，等待页面响应...")
