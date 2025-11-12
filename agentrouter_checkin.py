@@ -252,40 +252,56 @@ class LinuxDoAuthenticator(BaseAuthenticator):
                 if username_input and password_input:
                     print(f"✅ [{self.account_name}] 找到登录表单")
 
-                    # 低配环境优化：使用fill()代替click()+type()，更快且资源消耗少
+                    # 极低配环境终极方案：直接用JS设置值，跳过所有交互等待
                     try:
-                        # 填写用户名
-                        await username_input.fill(username, timeout=45000)
-                        await popup_page.wait_for_timeout(random.randint(300, 600))
+                        print(f"💡 [{self.account_name}] 使用JS直接填写表单（低配环境优化）...")
 
-                        # 随机延迟后填写密码
+                        # 直接通过JS设置值，绕过所有交互检查
+                        await popup_page.evaluate(f"""
+                            document.getElementById('login-account-name').value = '{username}';
+                            document.getElementById('login-account-password').value = '{password}';
+                        """)
+
+                        print(f"✅ [{self.account_name}] 表单填写完成")
                         await popup_page.wait_for_timeout(random.randint(500, 1000))
-                        await password_input.fill(password, timeout=45000)
 
-                        # 输入完成后随机等待（模拟人类思考）
-                        await popup_page.wait_for_timeout(random.randint(800, 1500))
                     except Exception as e:
-                        print(f"⚠️ [{self.account_name}] 填写表单失败: {e}")
-                        # 如果fill失败，尝试使用force点击+type
+                        print(f"⚠️ [{self.account_name}] JS填写失败，尝试fill()方法: {e}")
+                        # 降级方案1：使用fill()
                         try:
-                            await username_input.click(force=True, timeout=45000)
-                            await username_input.type(username, delay=100)
-                            await password_input.click(force=True, timeout=45000)
-                            await password_input.type(password, delay=100)
+                            await username_input.fill(username, timeout=45000)
+                            await popup_page.wait_for_timeout(random.randint(300, 600))
+                            await popup_page.wait_for_timeout(random.randint(500, 1000))
+                            await password_input.fill(password, timeout=45000)
+                            await popup_page.wait_for_timeout(random.randint(800, 1500))
                         except Exception as e2:
-                            print(f"❌ [{self.account_name}] 强制填写也失败: {e2}")
-                            return {"success": False, "error": f"填写登录表单失败: {str(e2)}"}
+                            print(f"⚠️ [{self.account_name}] fill()失败，尝试强制点击: {e2}")
+                            # 降级方案2：强制点击
+                            try:
+                                await username_input.click(force=True, timeout=45000)
+                                await username_input.type(username, delay=100)
+                                await password_input.click(force=True, timeout=45000)
+                                await password_input.type(password, delay=100)
+                            except Exception as e3:
+                                print(f"❌ [{self.account_name}] 所有填写方法都失败: {e3}")
+                                return {"success": False, "error": f"填写登录表单失败: {str(e3)}"}
 
                     # 点击登录按钮
                     login_button = await popup_page.query_selector('button[id="login-button"]')
                     if login_button:
                         print(f"🔑 [{self.account_name}] 点击登录按钮...")
-                        # 低配环境：增加超时时间，必要时强制点击
+                        # 极低配环境：直接用JS触发点击，跳过交互等待
                         try:
-                            await login_button.click(timeout=45000)
+                            await popup_page.evaluate('document.getElementById("login-button").click()')
+                            print(f"✅ [{self.account_name}] 登录按钮点击完成（JS方式）")
                         except Exception as e:
-                            print(f"⚠️ [{self.account_name}] 登录按钮点击超时，尝试强制点击...")
-                            await login_button.click(force=True, timeout=45000)
+                            print(f"⚠️ [{self.account_name}] JS点击失败，尝试常规点击: {e}")
+                            # 降级方案
+                            try:
+                                await login_button.click(timeout=45000)
+                            except Exception as e2:
+                                print(f"⚠️ [{self.account_name}] 常规点击失败，尝试强制点击: {e2}")
+                                await login_button.click(force=True, timeout=45000)
 
                         # --- 开始重构的智能等待逻辑 ---
                         print(f"⏳ [{self.account_name}] 已点击登录，等待页面响应...")
