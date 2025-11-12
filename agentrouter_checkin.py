@@ -266,23 +266,72 @@ class LinuxDoAuthenticator(BaseAuthenticator):
                         last_log_time = 0
                         second_click_done = False # 用于二次点击的标志
 
-                        while time.time() - start_time < 45:  # 45秒总超时
+                        while time.time() - start_time < 60:  # 从45秒增加到60秒
                             # 1. 检查是否成功导航
                             if "/login" not in popup_page.url:
                                 print(f"✅ [{self.account_name}] 登录成功，已跳转: {popup_page.url}")
                                 login_success = True
                                 break
 
-                            # 2. 检查并处理Cloudflare Turnstile
+                            # 2. 检查并处理Cloudflare Turnstile（增强版）
                             try:
-                                cf_iframe_locator = popup_page.frame_locator('iframe[src*="challenges.cloudflare.com"]')
-                                if await cf_iframe_locator.is_visible(timeout=500):
-                                    print(f"🤖 [{self.account_name}] 检测到Cloudflare验证，尝试处理...")
-                                    await cf_iframe_locator.locator('body').click(timeout=3000, force=True)
-                                    print(f"✅ [{self.account_name}] Cloudflare iframe body点击成功。")
-                                    await popup_page.wait_for_timeout(2000)
-                                    continue
+                                # 检测方法1: 查找CF iframe
+                                cf_iframe = popup_page.frame_locator('iframe[src*="challenges.cloudflare.com"]')
+
+                                # 多次尝试点击CF验证（无头模式需要更多尝试）
+                                for cf_attempt in range(5):  # 从1次增加到5次
+                                    try:
+                                        if await cf_iframe.locator('body').is_visible(timeout=500):
+                                            print(f"🤖 [{self.account_name}] 检测到Cloudflare验证（尝试{cf_attempt+1}/5）...")
+
+                                            # 先等待iframe完全加载
+                                            await popup_page.wait_for_timeout(1000 + random.randint(200, 500))
+
+                                            # 尝试多种点击策略
+                                            try:
+                                                # 策略1: 点击body
+                                                await cf_iframe.locator('body').click(timeout=3000, force=True)
+                                                print(f"✅ [{self.account_name}] CF验证点击成功(body)")
+                                            except:
+                                                try:
+                                                    # 策略2: 查找checkbox
+                                                    await cf_iframe.locator('input[type="checkbox"]').click(timeout=2000)
+                                                    print(f"✅ [{self.account_name}] CF验证点击成功(checkbox)")
+                                                except:
+                                                    # 策略3: 点击整个iframe区域
+                                                    await popup_page.locator('iframe[src*="challenges.cloudflare.com"]').click(force=True)
+                                                    print(f"✅ [{self.account_name}] CF验证点击成功(iframe)")
+
+                                            # 等待验证完成
+                                            await popup_page.wait_for_timeout(2000 + random.randint(500, 1000))
+
+                                            # 检查是否还有CF iframe（如果消失说明验证通过）
+                                            try:
+                                                still_visible = await cf_iframe.locator('body').is_visible(timeout=500)
+                                                if not still_visible:
+                                                    print(f"✅ [{self.account_name}] Cloudflare验证通过")
+                                                    break
+                                            except:
+                                                # iframe消失，验证通过
+                                                print(f"✅ [{self.account_name}] Cloudflare验证通过(iframe已消失)")
+                                                break
+                                    except Exception:
+                                        # 没找到CF iframe，跳出循环
+                                        break
                             except Exception:
+                                pass
+
+                            # 2b. 检测方法2: 检查页面标题和内容（CF挑战页面）
+                            try:
+                                page_title = await popup_page.title()
+                                page_content = await popup_page.content()
+
+                                if "Just a moment" in page_title or "cloudflare" in page_content.lower():
+                                    print(f"🤖 [{self.account_name}] 检测到Cloudflare挑战页面，等待自动完成...")
+                                    # CF挑战页面会自动完成，只需等待
+                                    await popup_page.wait_for_timeout(3000)
+                                    continue
+                            except:
                                 pass
 
                             # 3. 增强的错误提示检查
@@ -316,6 +365,19 @@ class LinuxDoAuthenticator(BaseAuthenticator):
                                     login_btn_check = await popup_page.query_selector('button.is-loading')
                                     if login_btn_check:
                                         print(f"   登录按钮仍在加载中... ({elapsed}s)")
+
+                                        # 🆕 检查按钮加载时是否有隐藏的CF验证正在进行
+                                        # 某些情况下，CF验证在后台运行，按钮会一直loading
+                                        # 我们需要给CF更多时间完成验证
+                                        if elapsed > 15 and elapsed % 10 == 5:
+                                            print(f"💡 [{self.account_name}] 按钮长时间加载，可能CF验证正在后台进行，继续等待...")
+                                            # 检查页面是否有JS错误
+                                            try:
+                                                js_check = await popup_page.evaluate("() => window.performance && window.performance.timing")
+                                                if js_check:
+                                                    print(f"   页面JS正常运行")
+                                            except:
+                                                pass
                                     else:
                                         # 二次点击逻辑
                                         if not second_click_done:
@@ -390,14 +452,14 @@ class LinuxDoAuthenticator(BaseAuthenticator):
                 except:
                     print(f"⚠️ [{self.account_name}] 页面加载超时，继续执行...")
 
-                # 先处理OAuth授权页面的Cloudflare验证（可能会出现）
+                # 先处理OAuth授权页面的Cloudflare验证（可能会出现 - 增强版）
                 print(f"🔍 [{self.account_name}] 检查OAuth授权页面是否需要Cloudflare验证...")
                 try:
                     await popup_page.wait_for_timeout(1000)
 
-                    # 查找Cloudflare Turnstile iframe
+                    # 查找Cloudflare Turnstile iframe（增强重试）
                     cf_handled_auth = False
-                    for attempt in range(3):
+                    for attempt in range(5):  # 从3次增加到5次
                         try:
                             frames = popup_page.frames
                             cf_frame = None
@@ -405,26 +467,59 @@ class LinuxDoAuthenticator(BaseAuthenticator):
                                 frame_url = frame.url
                                 if 'cloudflare' in frame_url or 'turnstile' in frame_url or 'challenges' in frame_url:
                                     cf_frame = frame
-                                    print(f"✅ [{self.account_name}] OAuth页面发现Cloudflare验证 (尝试{attempt+1}/3)")
+                                    print(f"✅ [{self.account_name}] OAuth页面发现Cloudflare验证 (尝试{attempt+1}/5)")
                                     break
 
                             if cf_frame:
                                 print(f"🤖 [{self.account_name}] 点击OAuth页面的Cloudflare验证...")
+                                # 增加随机延迟模拟人类
+                                await popup_page.wait_for_timeout(800 + random.randint(200, 500))
+
+                                # 多策略点击
+                                clicked = False
                                 try:
-                                    checkbox = await cf_frame.query_selector('input[type="checkbox"], body')
+                                    # 策略1: 查找checkbox
+                                    checkbox = await cf_frame.query_selector('input[type="checkbox"]')
                                     if checkbox:
                                         await checkbox.click(timeout=3000)
-                                        print(f"✅ [{self.account_name}] Cloudflare验证点击成功")
-                                        cf_handled_auth = True
+                                        print(f"✅ [{self.account_name}] CF验证点击成功(checkbox)")
+                                        clicked = True
+                                except:
+                                    pass
+
+                                if not clicked:
+                                    try:
+                                        # 策略2: 点击body
+                                        body = await cf_frame.query_selector('body')
+                                        if body:
+                                            await body.click(timeout=3000)
+                                            print(f"✅ [{self.account_name}] CF验证点击成功(body)")
+                                            clicked = True
+                                    except Exception as e:
+                                        print(f"⚠️ [{self.account_name}] CF点击失败: {e}")
+
+                                if clicked:
+                                    cf_handled_auth = True
+                                    # 等待验证完成（更长时间）
+                                    await popup_page.wait_for_timeout(2500 + random.randint(500, 1000))
+
+                                    # 检查验证是否通过
+                                    frames_after = popup_page.frames
+                                    cf_still_exists = any('cloudflare' in f.url or 'turnstile' in f.url for f in frames_after)
+                                    if not cf_still_exists:
+                                        print(f"✅ [{self.account_name}] OAuth页面Cloudflare验证通过")
                                         break
-                                except Exception as e:
-                                    print(f"⚠️ [{self.account_name}] Cloudflare验证点击失败 (尝试{attempt+1}): {e}")
-                                    if attempt < 2:
+                                    else:
+                                        print(f"⚠️ [{self.account_name}] CF验证仍存在，继续尝试...")
+                                        if attempt < 4:
+                                            await popup_page.wait_for_timeout(1000)
+                                else:
+                                    if attempt < 4:
                                         await popup_page.wait_for_timeout(500)
                             else:
                                 break
                         except Exception as e:
-                            if attempt < 2:
+                            if attempt < 4:
                                 await popup_page.wait_for_timeout(500)
 
                     if cf_handled_auth:
@@ -612,18 +707,24 @@ class AgentRouterCheckIn:
             "--allow-running-insecure-content",
             "--disable-gpu",
             "--window-size=1920,1080",
+            "--disable-features=IsolateOrigins,site-per-process",  # 减少隔离特征
+            "--disable-site-isolation-trials",
+            "--disable-features=BlockInsecurePrivateNetworkRequests",  # 减少安全策略特征
         ]
 
         # 更全面的Stealth脚本
         stealth_script = """
+            // 1. 隐藏webdriver特征
             Object.defineProperty(navigator, 'webdriver', {
               get: () => undefined,
             });
 
+            // 2. 修复语言特征
             Object.defineProperty(navigator, 'languages', {
-              get: () => ['en-US', 'en'],
+              get: () => ['zh-CN', 'zh', 'en-US', 'en'],
             });
 
+            // 3. 修复权限查询
             const originalQuery = window.navigator.permissions.query;
             window.navigator.permissions.query = (parameters) => (
               parameters.name === 'notifications' ?
@@ -631,6 +732,7 @@ class AgentRouterCheckIn:
                 originalQuery(parameters)
             );
 
+            // 4. 伪装plugins
             Object.defineProperty(navigator, 'plugins', {
               get: () => [
                 { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
@@ -639,20 +741,49 @@ class AgentRouterCheckIn:
               ],
             });
 
+            // 5. 修复WebGL指纹
             try {
                 const getParameter = WebGLRenderingContext.prototype.getParameter;
                 WebGLRenderingContext.prototype.getParameter = function(parameter) {
                     if (parameter === 37445) { // UNMASKED_VENDOR_WEBGL
-                        return 'Intel Open Source Technology Center';
+                        return 'Intel Inc.';
                     }
                     if (parameter === 37446) { // UNMASKED_RENDERER_WEBGL
-                        return 'Mesa DRI Intel(R) Ivybridge Mobile ';
+                        return 'Intel Iris OpenGL Engine';
                     }
-                    return getParameter(parameter);
+                    return getParameter.call(this, parameter);
                 };
-            } catch (e) {
-                // console.error(e);
+            } catch (e) {}
+
+            // 6. 修复chrome对象（重要！）
+            if (!window.chrome) {
+                window.chrome = {
+                    runtime: {},
+                    loadTimes: function() {},
+                    csi: function() {},
+                    app: {}
+                };
             }
+
+            // 7. 隐藏headless特征
+            Object.defineProperty(navigator, 'maxTouchPoints', {
+                get: () => 1,
+            });
+
+            // 8. 修复navigator.platform
+            Object.defineProperty(navigator, 'platform', {
+                get: () => 'Win32',
+            });
+
+            // 9. 修复deviceMemory
+            Object.defineProperty(navigator, 'deviceMemory', {
+                get: () => 8,
+            });
+
+            // 10. 修复hardwareConcurrency
+            Object.defineProperty(navigator, 'hardwareConcurrency', {
+                get: () => 8,
+            });
         """
 
         with tempfile.TemporaryDirectory() as temp_dir:
