@@ -728,8 +728,7 @@ class AgentRouterCheckIn:
             "--disable-features=IsolateOrigins,site-per-process",
             "--disable-site-isolation-trials",
             "--disable-features=BlockInsecurePrivateNetworkRequests",
-            # 低配环境优化参数
-            "--single-process",  # 单进程模式，减少内存消耗
+            # 低配环境优化参数（移除--single-process避免崩溃）
             "--disable-background-networking",
             "--disable-background-timer-throttling",
             "--disable-backgrounding-occluded-windows",
