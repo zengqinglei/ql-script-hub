@@ -268,19 +268,27 @@ def parse_result(html: str) -> tuple[str, str, float]:
     if not html:
         return "unknown", "页面内容为空", 0
 
-    amount = extract_reward(html)
+    # 🔧 优先检测：如果存在"立即签到"按钮，说明未签到（此时不提取金额）
+    if re.search(r'立即签到|<button[^>]+name=["\']checkin["\']', html, re.I):
+        if DEBUG_MODE:
+            print("[DEBUG] 检测到'立即签到'按钮，判断为未签到状态")
+        return "unknown", "检测到签到按钮，需要执行签到", 0
+
+    # 🔧 修复：更精确的已签到模式
     already_patterns = [
         r'今日已签到',
-        r'已连续签到',
         r'明天再来',
         r'已签到',
         r'already\s+checked',
     ]
     for pattern in already_patterns:
         if re.search(pattern, html, re.I):
+            # ✅ 只有确认已签到后才提取金额
+            amount = extract_reward(html)
             if amount > 0:
                 return "already", f"今日已签到，获得 {amount} 元", amount
             return "already", "今日已签到", 0
+
     success_patterns = [
         r'签到成功',
         r'获得奖励',
@@ -290,9 +298,12 @@ def parse_result(html: str) -> tuple[str, str, float]:
     ]
     for pattern in success_patterns:
         if re.search(pattern, html, re.I):
+            # ✅ 只有确认签到成功后才提取金额
+            amount = extract_reward(html)
             if amount > 0:
                 return "success", f"签到成功，获得 {amount} 元", amount
             return "success", "签到成功", 0
+
     invalid_patterns = [
         r'请登录',
         r'please\s+log\s*in',
