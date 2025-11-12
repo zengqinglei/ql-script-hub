@@ -662,7 +662,6 @@ class AgentRouterCheckIn:
                 headless=effective_headless,
                 user_agent=DEFAULT_USER_AGENT,
                 viewport={"width": 1920, "height": 1080},
-                channel="chrome",  # 切换回 Chrome
                 args=browser_launch_args,
                 java_script_enabled=True,
             )
