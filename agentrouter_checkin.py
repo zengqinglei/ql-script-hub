@@ -212,9 +212,9 @@ class LinuxDoAuthenticator(BaseAuthenticator):
 
             # 步骤3: 等待popup页面完全加载并跳转
             try:
-                # Docker环境可能较慢，增加超时时间
-                await popup_page.wait_for_load_state("domcontentloaded", timeout=20000)
-                await popup_page.wait_for_timeout(3000)  # 额外等待，确保重定向完成
+                # 低配Docker环境（CPU<1核）可能需要更长时间
+                await popup_page.wait_for_load_state("domcontentloaded", timeout=30000)
+                await popup_page.wait_for_timeout(5000)  # 额外等待，确保重定向完成
             except:
                 print(f"⚠️ [{self.account_name}] Popup页面加载超时，继续执行...")
 
@@ -235,11 +235,12 @@ class LinuxDoAuthenticator(BaseAuthenticator):
             if "linux.do" in current_url and "/login" in current_url:
                 print(f"🌐 [{self.account_name}] 检测到Linux.do登录页，填写登录表单...")
 
-                # 等待登录表单加载完成（Docker环境需要更长时间）
+                # 等待登录表单加载完成（低配Docker环境需要更长时间）
                 try:
                     print(f"⏳ [{self.account_name}] 等待登录表单加载...")
-                    await popup_page.wait_for_selector('input[id="login-account-name"]', timeout=15000)
-                    await popup_page.wait_for_timeout(1000)  # 额外等待确保表单完全可交互
+                    # CPU<1核的环境，表单渲染极慢，增加到30秒
+                    await popup_page.wait_for_selector('input[id="login-account-name"]', timeout=30000)
+                    await popup_page.wait_for_timeout(2000)  # 额外等待确保表单完全可交互
                 except Exception as e:
                     print(f"❌ [{self.account_name}] 等待登录表单超时: {e}")
                     return {"success": False, "error": "Linux.do 登录表单加载超时"}
@@ -710,6 +711,7 @@ class AgentRouterCheckIn:
         effective_headless = BROWSER_HEADLESS
 
         # 从 Regular-inspection 项目借鉴的高级反检测技术
+        # 针对低配Docker环境（CPU<1核，内存<1GB）优化
         browser_launch_args = [
             "--disable-blink-features=AutomationControlled",
             "--disable-dev-shm-usage",
@@ -722,10 +724,24 @@ class AgentRouterCheckIn:
             "--ignore-certificate-errors",
             "--allow-running-insecure-content",
             "--disable-gpu",
-            "--window-size=1920,1080",
-            "--disable-features=IsolateOrigins,site-per-process",  # 减少隔离特征
+            "--window-size=1280,720",  # 降低分辨率减少渲染压力
+            "--disable-features=IsolateOrigins,site-per-process",
             "--disable-site-isolation-trials",
-            "--disable-features=BlockInsecurePrivateNetworkRequests",  # 减少安全策略特征
+            "--disable-features=BlockInsecurePrivateNetworkRequests",
+            # 低配环境优化参数
+            "--single-process",  # 单进程模式，减少内存消耗
+            "--disable-background-networking",
+            "--disable-background-timer-throttling",
+            "--disable-backgrounding-occluded-windows",
+            "--disable-breakpad",
+            "--disable-component-extensions-with-background-pages",
+            "--disable-features=TranslateUI",
+            "--disable-ipc-flooding-protection",
+            "--disable-renderer-backgrounding",
+            "--metrics-recording-only",
+            "--mute-audio",
+            "--no-first-run",
+            "--disable-hang-monitor",
         ]
 
         # 更全面的Stealth脚本
