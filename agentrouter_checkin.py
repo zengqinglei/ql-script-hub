@@ -205,7 +205,8 @@ class LinuxDoAuthenticator(BaseAuthenticator):
 
             # 步骤3: 等待popup页面完全加载并跳转
             try:
-                await popup_page.wait_for_load_state("domcontentloaded", timeout=10000)
+                # Docker环境可能较慢，增加超时时间
+                await popup_page.wait_for_load_state("domcontentloaded", timeout=20000)
                 await popup_page.wait_for_timeout(3000)  # 额外等待，确保重定向完成
             except:
                 print(f"⚠️ [{self.account_name}] Popup页面加载超时，继续执行...")
@@ -226,7 +227,15 @@ class LinuxDoAuthenticator(BaseAuthenticator):
             # 步骤4: 如果跳转到Linux.do登录页，在popup中填写登录表单
             if "linux.do" in current_url and "/login" in current_url:
                 print(f"🌐 [{self.account_name}] 检测到Linux.do登录页，填写登录表单...")
-                await popup_page.wait_for_timeout(1000)
+
+                # 等待登录表单加载完成（Docker环境需要更长时间）
+                try:
+                    print(f"⏳ [{self.account_name}] 等待登录表单加载...")
+                    await popup_page.wait_for_selector('input[id="login-account-name"]', timeout=15000)
+                    await popup_page.wait_for_timeout(1000)  # 额外等待确保表单完全可交互
+                except Exception as e:
+                    print(f"❌ [{self.account_name}] 等待登录表单超时: {e}")
+                    return {"success": False, "error": "Linux.do 登录表单加载超时"}
 
                 # 查找登录表单
                 username_input = await popup_page.query_selector('input[id="login-account-name"]')
