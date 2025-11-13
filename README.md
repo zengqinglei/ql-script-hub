@@ -46,10 +46,180 @@ ql-script-hub/
 
 ## 🚀 快速开始
 
+本项目支持两种运行方式：
+
+- **方式一：青龙面板** - 传统方式，功能完整，推荐自建服务器用户
+- **方式二：GitHub Actions** - 无需服务器，完全免费，推荐个人用户
+
+---
+
+## 🤖 方式一：GitHub Actions 自动运行（推荐）
+
+### ✨ 功能特性
+
+- ✅ **完全免费** - 使用 GitHub 免费额度，无需自建服务器
+- ✅ **自动定时** - 每天北京时间 8:00 自动运行
+- ✅ **支持多选** - 可选择运行特定脚本或全部脚本
+- ✅ **智能判断** - 自动跳过未配置环境变量的脚本
+- ✅ **完整通知** - 支持 Server酱、企业微信等多种推送方式
+- ✅ **兼容青龙** - 100% 兼容青龙面板环境变量配置
+- ✅ **自动更新** - 可配置自动更新 Token（如阿里云盘）
+
+### 📋 快速开始
+
+#### 1. Fork 本仓库
+
+点击页面右上角的 **Fork** 按钮，将本仓库复制到你的账号下。
+
+#### 2. 启用 GitHub Actions
+
+1. 进入你 Fork 的仓库
+2. 点击 **Actions** 标签
+3. 点击 **I understand my workflows, go ahead and enable them**
+
+#### 3. 配置 GitHub Secrets
+
+进入 **Settings** > **Secrets and variables** > **Actions** > **New repository secret**
+
+**必配项（推荐）：**
+
+| 变量名 | 说明 | 示例值 |
+|-------|------|-------|
+| `PUSH_KEY` | Server酱推送Key | `SCT300842T...` |
+| `QYWX_KEY` | 企业微信机器人Key | `5036ccf4-7f42...` |
+| `PRIVACY_MODE` | 隐私模式（日志脱敏） | `true` |
+
+**按需配置（根据你要使用的服务）：**
+
+<details>
+<summary>点击展开查看所有支持的环境变量</summary>
+
+| 服务 | 环境变量 | 说明 |
+|-----|---------|------|
+| iKuuu | `IKUUU_EMAIL`, `IKUUU_PASSWD` | 登录邮箱和密码 |
+| Leaflow | `LEAFLOW_COOKIE` | Cookie（JSON数组） |
+| 阿里云盘 | `ALIYUN_REFRESH_TOKEN` | refresh_token |
+| AnyRouter | `ANYROUTER_ACCOUNTS` | 账号配置（JSON） |
+| AgentRouter | `AGENTROUTER_ACCOUNTS` | Linux.do账号配置（JSON） |
+| 百度网盘 | `BAIDU_COOKIE` | Cookie |
+| 夸克网盘 | `QUARK_COOKIE` | Cookie |
+| 有道云笔记 | `YOUDAO_COOKIE` | Cookie |
+| NodeSeek | `NODESEEK_COOKIE` | Cookie |
+| DeepFlood | `DEEPFLOOD_COOKIE` | Cookie |
+| NGA | `NGA_COOKIE` | Cookie |
+| 百度贴吧 | `TIEBA_COOKIE` | Cookie |
+| 什么值得买 | `SMZDM_COOKIE` | Cookie |
+| 天翼云盘 | `TY_NETDISK_COOKIE` | Cookie |
+| 顺丰速运 | `SFSU_COOKIE` | Cookie |
+| 恩山论坛 | `ENSHAN_COOKIE` | Cookie |
+
+详细配置方法见下方"获取方式说明"章节。
+
+</details>
+
+#### 4. 手动触发测试
+
+1. 进入 **Actions** > **签到任务**
+2. 点击 **Run workflow**
+3. 在输入框中填写要运行的脚本：
+   - **留空或 `all`**：自动运行所有已配置的脚本
+   - **单个脚本**：如 `ikuuu`
+   - **多个脚本**：如 `ikuuu,leaflow,aliyunpan`（逗号分隔）
+4. 点击绿色的 **Run workflow** 按钮
+
+#### 5. 查看运行日志
+
+1. 进入 **Actions** 标签
+2. 点击最近的 workflow 运行记录
+3. 展开 **运行签到脚本** 查看详细日志
+
+### 🎯 智能运行说明
+
+**默认行为（`all` 模式）：**
+- 自动检测每个脚本所需的环境变量
+- 只运行已配置环境变量的脚本
+- 跳过未配置的脚本
+
+**示例输出：**
+```
+📋 输入的脚本: all
+⏭️  跳过 ikuuu: 未配置所需环境变量 (IKUUU_EMAIL IKUUU_PASSWD)
+🚀 开始执行: leaflow
+✅ leaflow 执行成功
+🚀 开始执行: aliyunpan
+✅ aliyunpan 执行成功
+```
+
+### ⏰ 定时任务说明
+
+**默认执行时间：** 每天北京时间 8:00（UTC 0:00）
+
+**修改执行时间：** 编辑 `.github/workflows/checkin.yml` 中的 cron 表达式
+
+```yaml
+schedule:
+  - cron: '0 0 * * *'  # UTC 0:00 = 北京 8:00
+  - cron: '0 16 * * *'  # UTC 16:00 = 北京 0:00
+```
+
+### 🔄 Token 自动更新（高级功能）
+
+某些服务（如阿里云盘）的 Token 会定期刷新，在 GitHub Actions 中提供两种方案：
+
+#### 方案一：自动更新（推荐）
+
+**优点：** 完全自动化，无需人工干预
+**缺点：** 需要额外配置 PAT
+
+**配置步骤：**
+
+1. **创建 GitHub Personal Access Token**
+   - 访问 https://github.com/settings/tokens
+   - 点击 **Generate new token (classic)**
+   - **Note**: `ql-script-hub-auto-update`
+   - **Expiration**: 90 days 或 No expiration
+   - **Scopes**: 勾选 ✅ **repo**（完整勾选）
+   - 复制生成的 token
+
+2. **配置 GH_PAT Secret**
+   - 进入仓库 **Settings** > **Secrets** > **Actions**
+   - 添加 Secret：
+     - Name: `GH_PAT`
+     - Value: 粘贴刚才的 token
+
+3. **验证自动更新**
+   - 运行一次 workflow
+   - 查看日志中是否有 "✅ Secret 更新成功"
+
+#### 方案二：手动更新（简单）
+
+**优点：** 配置简单，更安全
+**缺点：** 需要人工更新（约 3-6 个月一次）
+
+**使用方法：**
+- 不配置 `GH_PAT`
+- 当 Token 更新时，通知消息会包含新 Token
+- 收到通知后，手动更新 GitHub Secret
+
+### ⚠️ 注意事项
+
+1. **仓库活跃度**：如果 60 天无提交，定时任务会被禁用
+2. **AgentRouter 限制**：无头模式成功率较低（GitHub Actions 环境限制）
+3. **Cookie 有效期**：定期检查 Cookie 是否过期
+4. **定时任务延迟**：GitHub Actions 可能有 5-10 分钟延迟
+
+---
+
+## 🐉 方式二：青龙面板运行
+
 ### 环境要求
 
 - 青龙面板 2.10+
 - Node.js 14+
+- **⚠️ AgentRouter 特殊要求**：
+  - CPU > 500m（推荐 1 核心）
+  - 内存 > 1024MB（推荐 2GB）
+  - 需安装 Playwright + Chromium 浏览器
 
 ### 安装步骤
 
@@ -64,6 +234,27 @@ ql-script-hub/
    - 青龙面板 → 依赖管理 → Python3
    - 添加依赖：`PyExecJS` (anyrouter_checkin.py 脚本依赖，用于处理WAF挑战)
    - 点击安装
+
+   **使用 AgentRouter 脚本需额外安装：**
+   - 青龙面板 → 依赖管理 → Python3 → 添加依赖：`playwright`
+   - 安装完成后，进入青龙容器执行：
+     ```bash
+     # 进入容器
+     docker exec -it qinglong bash
+
+     # 安装 Chromium 浏览器
+     playwright install chromium
+     playwright install-deps chromium
+
+     # 验证安装
+     playwright --version
+     ```
+
+   > **⚠️ 资源要求说明：**
+   > - AgentRouter 使用 Playwright 自动化浏览器进行 Linux.do 认证
+   > - Chromium 浏览器最低要求：CPU 500m + 内存 1GB
+   > - 推荐配置：CPU 1核心 + 内存 2GB，成功率更高
+   > - **如果资源不足**：建议使用 GitHub Actions 方式（无需安装浏览器）
 
 3. **配置环境变量（复用青龙通知模块）**
 
@@ -178,11 +369,52 @@ ql-script-hub/
 
 | 变量名 | 说明 | 是否必需 | 示例值 | 备注 |
 |--------|------|----------|--------|------|
-| `AGENTROUTER_ACCOUNTS` | AgentRouter账号配置（JSON数组格式） | **必需** | `[{"cookies":{"session":"xxx"},"api_user":"123"}]` | JSON数组格式，支持多账号 |
-| `AGENTROUTER_BASE_URL` | API基础地址 | 可选 | `https://agentrouter.org` | 默认`https://agentrouter.org` |
-| `AGENTROUTER_TIMEOUT` | 请求超时时间（秒） | 可选 | `60` | 默认30秒 |
-| `AGENTROUTER_VERIFY_SSL` | SSL证书验证 | 可选 | `false` | 默认`true` |
-| `AGENTROUTER_MAX_RETRIES` | 最大重试次数 | 可选 | `5` | 默认3次 |
+| `AGENTROUTER_ACCOUNTS` | AgentRouter账号配置（JSON数组格式） | **必需** | 见下方详细说明 | JSON数组格式，支持多账号 |
+| `BROWSER_HEADLESS` | 浏览器无头模式 | 可选 | `true` | 默认`true`，GitHub Actions 必须为 true |
+
+**配置格式说明：**
+
+`AGENTROUTER_ACCOUNTS` 是一个 JSON 数组，每个账号需要包含以下字段：
+
+```json
+[
+  {
+    "name": "账号名称（自定义）",
+    "linux.do": {
+      "username": "你的Linux.do登录邮箱",
+      "password": "你的Linux.do登录密码"
+    }
+  }
+]
+```
+
+**多账号示例：**
+
+```json
+[
+  {
+    "name": "账号1",
+    "linux.do": {
+      "username": "user1@example.com",
+      "password": "password1"
+    }
+  },
+  {
+    "name": "账号2",
+    "linux.do": {
+      "username": "user2@example.com",
+      "password": "password2"
+    }
+  }
+]
+```
+
+**⚠️ 重要说明：**
+- AgentRouter 使用 **Linux.do** 账号进行 OAuth 认证
+- **必须提供** Linux.do 的登录邮箱和密码
+- 脚本会自动使用 Playwright 浏览器完成登录认证流程
+- 认证过程需要一定时间（约 30-60 秒）
+- **无头模式**成功率较低，建议青龙面板用户使用有头模式（设置 `BROWSER_HEADLESS=false`）
 
 #### 📓 有道云笔记签到配置
 
@@ -331,11 +563,62 @@ ql-script-hub/
 - 脚本会自动处理 WAF 挑战，无需手动配置 WAF cookies
 
 #### AgentRouter配置（JSON数组格式）
-配置方式参考上方 **AnyRouter配置**，只需将：
-- 网站地址改为 [AgentRouter](https://agentrouter.org)
-- 环境变量名 `ANYROUTER_ACCOUNTS` 改为 `AGENTROUTER_ACCOUNTS`
 
-注意：两个脚本的配置格式和功能完全相同。
+**与 AnyRouter 的重要区别：**
+- AgentRouter 使用 **Linux.do OAuth 认证**，不需要抓包获取 cookies
+- 只需要提供 Linux.do 的登录账号和密码即可
+- 脚本会自动使用 Playwright 浏览器完成 OAuth 认证流程
+
+**配置步骤：**
+
+1. **准备 Linux.do 账号**
+   - 访问 [Linux.do](https://linux.do) 注册账号（如果还没有）
+   - 记录你的登录邮箱和密码
+
+2. **配置环境变量**
+
+   在青龙面板或 GitHub Secrets 中设置 `AGENTROUTER_ACCOUNTS`：
+
+   ```json
+   [
+     {
+       "name": "我的AgentRouter账号",
+       "linux.do": {
+         "username": "你的Linux.do登录邮箱",
+         "password": "你的Linux.do登录密码"
+       }
+     }
+   ]
+   ```
+
+3. **多账号配置示例**
+
+   ```json
+   [
+     {
+       "name": "账号1",
+       "linux.do": {
+         "username": "user1@example.com",
+         "password": "password1"
+       }
+     },
+     {
+       "name": "账号2",
+       "linux.do": {
+         "username": "user2@example.com",
+         "password": "password2"
+       }
+     }
+   ]
+   ```
+
+**⚠️ 注意事项：**
+- 必须安装 Playwright 和 Chromium 浏览器（青龙面板用户）
+- 认证过程需要 30-60 秒，请耐心等待
+- **青龙面板用户**：建议设置 `BROWSER_HEADLESS=false` 使用有头模式，成功率更高
+- **GitHub Actions 用户**：只能使用无头模式，成功率较低（约 30-50%）
+- 如果认证失败，可以多次重试
+- **安全提示**：密码会存储在环境变量中，请确保环境安全
 
 #### NGA论坛配置
 1. 安装抓包工具并开启 HTTPS 解密，安装并信任证书 Android：HTTP Canary、HttpToolkit、mitmproxy、Charles; iOS：Stream、Charles
