@@ -1,0 +1,6 @@
+requests # 公共依赖
+httpx # agentrouter 签到依赖
+curl-cffi # 公共依赖
+PyExecJS # anyrouter 签到依赖
+playwright # agentrouter 签到依赖
+PyNaCl # GitHub 功能依赖
