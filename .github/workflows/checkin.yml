@@ -97,9 +97,9 @@ jobs:
           echo "✅ notify.py 已准备就绪"
 
       - name: 连接到 Cloudflare WARP
-        uses: Boostport/setup-cloudflare-warp@v1
+        uses: fscarmen/warp-on-actions@v1.3
         with:
-          organization: none
+          mode: client
 
       - name: 运行签到脚本
         env:
