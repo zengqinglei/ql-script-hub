@@ -97,7 +97,7 @@ jobs:
           echo "✅ notify.py 已准备就绪"
 
       - name: 连接到 Cloudflare WARP
-        uses: fscarmen/warp-on-actions@v2.2.1
+        uses: fscarmen/warp-on-actions@v1.3
 
       - name: 运行签到脚本
         env:
