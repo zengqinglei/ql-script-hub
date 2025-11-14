@@ -8,9 +8,18 @@ new Env('百度网盘签到')
 import os
 import time
 import re
-import requests
 import random
 from datetime import datetime
+
+# 尝试使用 curl_cffi 以更好地模拟浏览器特征
+try:
+    from curl_cffi import requests
+    USE_CURL_CFFI = True
+    print("✅ 使用 curl-cffi 库（更好的浏览器模拟）")
+except ImportError:
+    import requests
+    USE_CURL_CFFI = False
+    print("⚠️  curl-cffi 未安装，使用标准 requests 库")
 
 # ---------------- 统一通知模块加载 ----------------
 hadsend = False
@@ -82,6 +91,24 @@ def notify_user(title, content):
     else:
         print(f"📢 {title}\n📄 {content}")
 
+def make_request(method, url, headers=None, timeout=15, **kwargs):
+    """统一的HTTP请求函数，支持 curl-cffi 浏览器模拟"""
+    try:
+        if USE_CURL_CFFI:
+            # 使用 curl-cffi 模拟 Chrome 浏览器指纹
+            if method.upper() == 'GET':
+                return requests.get(url, headers=headers, timeout=timeout, impersonate="chrome110", **kwargs)
+            elif method.upper() == 'POST':
+                return requests.post(url, headers=headers, timeout=timeout, impersonate="chrome110", **kwargs)
+        else:
+            # 使用标准 requests 库
+            if method.upper() == 'GET':
+                return requests.get(url, headers=headers, timeout=timeout, **kwargs)
+            elif method.upper() == 'POST':
+                return requests.post(url, headers=headers, timeout=timeout, **kwargs)
+    except Exception as e:
+        raise e
+
 class BaiduPan:
     name = "百度网盘"
 
@@ -107,7 +134,7 @@ class BaiduPan:
         signed_headers['Cookie'] = self.cookie
         
         try:
-            resp = requests.get(url, headers=signed_headers, timeout=15)
+            resp = make_request('GET', url, headers=signed_headers, timeout=15)
             print(f"🔍 签到响应状态码: {resp.status_code}")
             
             if resp.status_code == 200:
@@ -161,7 +188,7 @@ class BaiduPan:
         signed_headers['Cookie'] = self.cookie
         
         try:
-            resp = requests.get(url, headers=signed_headers, timeout=15)
+            resp = make_request('GET', url, headers=signed_headers, timeout=15)
             if resp.status_code == 200:
                 answer = re.search(r'"answer":(\d+)', resp.text)
                 ask_id = re.search(r'"ask_id":(\d+)', resp.text)
@@ -194,7 +221,7 @@ class BaiduPan:
         signed_headers['Cookie'] = self.cookie
         
         try:
-            resp = requests.get(url, headers=signed_headers, timeout=15)
+            resp = make_request('GET', url, headers=signed_headers, timeout=15)
             if resp.status_code == 200:
                 answer_msg = re.search(r'"show_msg":"(.*?)"', resp.text)
                 answer_score = re.search(r'"score":(\d+)', resp.text)
@@ -237,7 +264,7 @@ class BaiduPan:
         signed_headers['Cookie'] = self.cookie
 
         try:
-            resp = requests.get(url, headers=signed_headers, timeout=15)
+            resp = make_request('GET', url, headers=signed_headers, timeout=15)
             if resp.status_code == 200:
                 data = resp.json()
                 if data.get('errno') == 0:
@@ -278,7 +305,7 @@ class BaiduPan:
             uinfo_url = f"{BAIDU_DOMAIN}/rest/2.0/xpan/nas?method=uinfo"
             uinfo_headers = HEADERS.copy()
             uinfo_headers['Cookie'] = self.cookie
-            uinfo_resp = requests.get(uinfo_url, headers=uinfo_headers, timeout=15)
+            uinfo_resp = make_request('GET', uinfo_url, headers=uinfo_headers, timeout=15)
             if uinfo_resp.status_code == 200:
                 uinfo_data = uinfo_resp.json()
                 if uinfo_data.get('errno') == 0:
@@ -294,7 +321,7 @@ class BaiduPan:
         signed_headers['Cookie'] = self.cookie
 
         try:
-            resp = requests.get(url, headers=signed_headers, timeout=15)
+            resp = make_request('GET', url, headers=signed_headers, timeout=15)
             if resp.status_code == 200:
                 current_value = re.search(r'current_value":(\d+)', resp.text)
                 current_level = re.search(r'current_level":(\d+)', resp.text)

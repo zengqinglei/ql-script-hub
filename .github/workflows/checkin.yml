@@ -11,11 +11,33 @@ on:
   # 手动触发
   workflow_dispatch:
     inputs:
-      scripts:
-        description: '要运行的脚本（多个用逗号分隔，如: ikuuu,leaflow,aliyunpan 或 all 运行全部已配置的脚本）'
+      run_all:
+        description: '是否运行所有脚本'
+        required: true
+        default: true
+        type: boolean
+      script_name:
+        description: '选择要运行的单个脚本（仅当"是否运行所有"为false时生效）'
         required: false
-        default: 'all'
-        type: string
+        default: 'ikuuu'
+        type: choice
+        options:
+          - ikuuu
+          - leaflow
+          - aliyunpan
+          - anyrouter
+          - agentrouter
+          - youdaoyun
+          - baiduwangpan
+          - quark
+          - nodeseek
+          - deepflood
+          - nga
+          - tieba
+          - smzdm
+          - ty_netdisk
+          - sfsu
+          - enshan
 
 jobs:
   checkin:
@@ -29,17 +51,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
 
       - name: 安装依赖
         run: |
           python -m pip install --upgrade pip
           # 安装常用依赖
-          pip install requests urllib3 httpx curl-cffi
-          # 检查是否有 requirements.txt
-          if [ -f requirements.txt ]; then
-            pip install -r requirements.txt
-          fi
+          pip install requests urllib3 httpx curl-cffi PyExecJS
           # 安装 playwright（用于 agentrouter）
           pip install playwright
           playwright install chromium --with-deps
@@ -97,13 +114,24 @@ jobs:
           echo "当前时间: $(date '+%Y-%m-%d %H:%M:%S')"
           echo "=========================================="
 
-          # 获取用户输入的脚本列表（默认为 all）
-          SCRIPTS_INPUT="${{ github.event.inputs.scripts }}"
-          if [ -z "$SCRIPTS_INPUT" ]; then
-            SCRIPTS_INPUT="all"
+          # 获取用户输入
+          RUN_ALL="${{ github.event.inputs.run_all }}"
+          SCRIPT_NAME="${{ github.event.inputs.script_name }}"
+
+          # 如果是定时任务触发（没有输入参数），默认运行所有
+          if [ -z "$RUN_ALL" ]; then
+            RUN_ALL="true"
           fi
 
-          echo "📋 输入的脚本: $SCRIPTS_INPUT"
+          # 根据选择确定要运行的脚本
+          if [ "$RUN_ALL" = "true" ]; then
+            SCRIPTS_INPUT="all"
+            echo "📋 运行模式: 所有脚本"
+          else
+            SCRIPTS_INPUT="$SCRIPT_NAME"
+            echo "📋 运行模式: 单个脚本 - $SCRIPT_NAME"
+          fi
+
           echo ""
 
           # 定义函数：检查环境变量是否存在
