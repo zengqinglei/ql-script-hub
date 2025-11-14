@@ -585,7 +585,7 @@ def main():
 
             # 使用统一的通知消息构建函数
             notify_msg = build_notify_message(name, msg, user_info)
-            safe_send_notify("[Leaflow]签到成功", notify_msg)
+            safe_send_notify("[leaflow]签到成功", notify_msg)
 
         elif status == "already":
             already_count += 1
@@ -598,7 +598,7 @@ def main():
             if NOTIFY_ON_ALREADY:
                 # 使用统一的通知消息构建函数
                 notify_msg = build_notify_message(name, msg, user_info)
-                safe_send_notify("[Leaflow]签到提醒", notify_msg)
+                safe_send_notify("[leaflow]签到成功", notify_msg)
 
         else:
             fail_count += 1
@@ -606,7 +606,7 @@ def main():
 
             # 使用统一的通知消息构建函数
             notify_msg = build_notify_message(name, msg, user_info)
-            safe_send_notify("[Leaflow]签到失败", notify_msg)
+            safe_send_notify("[leaflow]签到失败", notify_msg)
 
         if it["idx"] < len(schedule):
             time.sleep(random.uniform(2, 5))
@@ -633,7 +633,7 @@ def main():
         if total_amount > 0:
             summary += f"\n💰 今日共获得：{total_amount} 元"
         summary += f"\n⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        safe_send_notify("[Leaflow]签到汇总", summary)
+        safe_send_notify("[leaflow]签到汇总", summary)
 
 
 if __name__ == "__main__":
