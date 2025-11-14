@@ -448,7 +448,7 @@ class LinuxDoAuthenticator(BaseAuthenticator):
                             await popup_page.wait_for_timeout(1000)  # 轮询间隔
 
                         if not login_success:
-                            print(f"⚠️ [{self.account_name}] 登录���时（45秒），页面可能卡住。")
+                            print(f"⚠️ [{self.account_name}] 登录超时（45秒），页面可能卡住。")
                             return {"success": False, "error": "登录超时，未能跳转或完成验证"}
 
                         print(f"✅ [{self.account_name}] Linux.do 登录流程完成")
