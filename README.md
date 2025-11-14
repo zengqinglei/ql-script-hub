@@ -94,7 +94,6 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 ### 环境要求
 
 - 青龙面板 2.10+
-- Node.js 14+
 - 最小配置：CPU > 100m, 内存 > 384MB
 - 推荐配置：CPU > 500m（1 核心）, 内存 > 1GB（2GB）
 
@@ -111,26 +110,15 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 
    - **公共依赖**：`requests`
    - **anyrouter 签到依赖**：`PyExecJS`
-   - **agentrouter 签到依赖**：`httpx` `playwright`
-
-   **一键安装完整依赖：**
-   ```bash
-   pip install --upgrade pip && pip install requests PyExecJS httpx playwright && playwright install chromium
-   ```
+   - **agentrouter 签到依赖**：`httpx playwright`
+   - **完整依赖：**：`--upgrade pip && pip install requests PyExecJS httpx playwright && playwright install chromium`
 
 3. **安装 Linux 依赖**
 
    进入青龙面板 → 依赖管理 → Linux：
 
    - **公共依赖**：无
-   - **agentrouter 签到依赖**：`debianutils`
-
-   > **⚠️ AgentRouter 资源要求说明：**
-   > - 使用 Playwright 自动化浏览器进行 Linux.do 认证
-   > - 最小配置：CPU 100m + 内存 384MB（可运行但成功率较低）
-   > - 推荐配置：CPU 500m + 内存 1GB（成功率更高）
-   > - 建议设置 `BROWSER_HEADLESS=false` 使用有头模式
-   > - **如果资源不足**：建议使用 GitHub Actions 方式（无需安装浏览器）
+   - **agentrouter 签到依赖**：`debianutils && apt-get update && apt-get install -y libgbm1 libglib2.0-0 libnss3 libnspr4 libxss1 libdrm2 libgtk-3-0 libasound2`
 
 4. **配置环境变量**
 
