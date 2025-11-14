@@ -637,7 +637,9 @@ class RUN:
 
 ⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
 
-                send(f'[顺丰速运]账号{self.index}', formatted_msg)
+                is_success = '❌' not in one_msg and '失败' not in one_msg
+                title = f"[sfsu]签到{'成功' if is_success else '失败'}"
+                send(title, formatted_msg)
                 print(f'✅ 账号{self.index}通知发送完成')
             except Exception as e:
                 print(f'❌ 账号{self.index}通知发送失败: {e}')

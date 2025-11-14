@@ -1189,9 +1189,10 @@ async def main_async():
 
     print(f"\n{notification_content}\n")
 
-    # 发送通知 (只在有失败时发送)
-    if success_count < total_count:
-        safe_send_notify("[AgentRouter]签到结果", notification_content)
+    # 发送通知
+    if total_count > 0:
+        title = f"[agentrouter]签到{'成功' if success_count == total_count else '失败'}"
+        safe_send_notify(title, notification_content)
 
     print(f"{'='*80}\n")
 
