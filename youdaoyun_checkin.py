@@ -14,10 +14,9 @@ if sys.platform == 'win32':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 import requests
-import json
 import random
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # ---------------- 统一通知模块加载 ----------------
 hadsend = False
@@ -34,7 +33,6 @@ YOUDAO_DOMAIN = os.getenv("YOUDAO_DOMAIN", "https://note.youdao.com").rstrip("/"
 YOUDAO_COOKIE = os.environ.get('YOUDAO_COOKIE', '')
 max_random_delay = int(os.getenv("MAX_RANDOM_DELAY", "3600"))
 random_signin = os.getenv("RANDOM_SIGNIN", "true").lower() == "true"
-privacy_mode = os.getenv("PRIVACY_MODE", "true").lower() == "true"
 
 def format_time_remaining(seconds):
     """格式化时间显示"""
@@ -73,15 +71,6 @@ def notify_user(title, content):
     else:
         print(f"📢 {title}\n📄 {content}")
 
-def mask_uid(uid):
-    """UID脱敏处理"""
-    if not uid or uid == "未知用户":
-        return uid
-
-    if privacy_mode and len(uid) > 6:
-        return f"{uid[:3]}***{uid[-3:]}"
-    return uid
-
 class YouDaoYun:
     name = "有道云笔记"
 
@@ -90,6 +79,16 @@ class YouDaoYun:
         self.index = index
         self.cookies_dict = {}
         self.uid = "未知用户"
+
+    @staticmethod
+    def format_size(size_bytes):
+        """将字节转换为可读格式"""
+        if size_bytes >= 1073741824:  # >= 1GB
+            return f"{size_bytes / 1073741824:.2f}GB"
+        elif size_bytes >= 1048576:  # >= 1MB
+            return f"{size_bytes / 1048576:.2f}MB"
+        else:
+            return f"{size_bytes / 1024:.2f}KB"
 
     def parse_cookie(self):
         """解析cookie字符串为字典"""
@@ -106,7 +105,7 @@ class YouDaoYun:
                 if len(parts) >= 2:
                     self.uid = parts[-2]
 
-            print(f"👤 用户ID: {mask_uid(self.uid)}")
+            print(f"👤 用户ID: {self.uid}")
             return True
         except Exception as e:
             print(f"❌ Cookie解析失败: {e}")
@@ -163,22 +162,12 @@ class YouDaoYun:
                     total_size = um.get("q", 0)  # 总容量（字节）
                     used_size = um.get("u", 0)   # 已用空间（字节）
 
-                    # 转换为可读格式
-                    def format_size(size_bytes):
-                        """将字节转换为可读格式"""
-                        if size_bytes >= 1073741824:  # >= 1GB
-                            return f"{size_bytes / 1073741824:.2f}GB"
-                        elif size_bytes >= 1048576:  # >= 1MB
-                            return f"{size_bytes / 1048576:.2f}MB"
-                        else:
-                            return f"{size_bytes / 1024:.2f}KB"
-
                     space_info = {
                         "total_size": total_size,
                         "used_size": used_size,
-                        "total_formatted": format_size(total_size),
-                        "used_formatted": format_size(used_size),
-                        "free_formatted": format_size(total_size - used_size)
+                        "total_formatted": self.format_size(total_size),
+                        "used_formatted": self.format_size(used_size),
+                        "free_formatted": self.format_size(total_size - used_size)
                     }
 
                     print(f"✅ 存储空间信息获取成功")
@@ -273,20 +262,7 @@ class YouDaoYun:
         print(f"\n==== 有道云笔记账号{self.index} 开始签到 ====")
 
         if not self.cookie.strip():
-            error_msg = """Cookie配置错误
-
-❌ 错误原因: 未找到YOUDAO_COOKIE环境变量
-
-🔧 解决方法:
-1. 打开有道云笔记网页版: https://note.youdao.com/
-2. 登录您的账号
-3. 按F12打开开发者工具
-4. 切换到Network标签页，刷新页面
-5. 找到任意请求的Request Headers
-6. 复制完整的Cookie值
-7. 在青龙面板中添加环境变量YOUDAO_COOKIE
-"""
-
+            error_msg = "Cookie为空，请检查配置"
             print(f"❌ {error_msg}")
             return error_msg, False
 
@@ -298,27 +274,27 @@ class YouDaoYun:
         if not self.refresh_cookies():
             return "Cookies刷新失败，请更新Cookie", False
 
-        # 3. 获取用户存储空间信息
-        space_info = self.get_user_space_info()
-
-        # 4. 同步推广空间
+        # 3. 同步推广空间
         sync_space = self.sync_promotion()
 
-        # 5. 每日签到
+        # 4. 每日签到
         checkin_space = self.daily_checkin()
 
-        # 6. 观看广告
+        # 5. 观看广告
         ad_space = self.watch_ads(count=3)
 
-        # 7. 计算总空间
+        # 6. 计算总空间
         total_space = sync_space + checkin_space + ad_space
+
+        # 7. 获取用户存储空间信息（签到后获取，包含签到奖励）
+        space_info = self.get_user_space_info()
 
         # 8. 组合结果消息（统一模板格式）
         domain_display = YOUDAO_DOMAIN.replace('https://', '').replace('http://', '')
         final_msg = f"""🌐 域名：{domain_display}
 
 👤 账号{self.index}：
-📱 用户：{mask_uid(self.uid)}"""
+📱 用户：{self.uid}"""
 
         # 添加存储空间信息
         if space_info:
@@ -328,7 +304,7 @@ class YouDaoYun:
         final_msg += f"""
 📝 签到：签到完成，获得 {total_space}M 空间"""
 
-        if sync_space > 0 or checkin_space > 0 or ad_space > 0:
+        if total_space > 0:
             final_msg += "\n💡 明细："
             if sync_space > 0:
                 final_msg += f" 同步推广{sync_space}M"
@@ -347,9 +323,6 @@ def main():
     """主程序入口"""
     print(f"==== 有道云笔记签到开始 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
 
-    # 显示配置状态
-    print(f"🔒 隐私保护模式: {'已启用' if privacy_mode else '已禁用'}")
-
     # 随机延迟（整体延迟）
     if random_signin:
         delay_seconds = random.randint(0, max_random_delay)
@@ -358,9 +331,7 @@ def main():
             wait_with_countdown(delay_seconds, "有道云笔记签到")
 
     # 获取Cookie配置
-    youdao_cookies = YOUDAO_COOKIE
-
-    if not youdao_cookies:
+    if not YOUDAO_COOKIE:
         error_msg = """❌ 未找到YOUDAO_COOKIE环境变量
 
 🔧 获取Cookie的方法:
@@ -378,16 +349,15 @@ def main():
         return
 
     # 支持多账号（用换行分隔）
-    if '\n' in youdao_cookies:
-        cookies = [cookie.strip() for cookie in youdao_cookies.split('\n') if cookie.strip()]
+    if '\n' in YOUDAO_COOKIE:
+        cookies = [cookie.strip() for cookie in YOUDAO_COOKIE.split('\n') if cookie.strip()]
     else:
-        cookies = [youdao_cookies.strip()]
+        cookies = [YOUDAO_COOKIE.strip()]
 
     print(f"📝 共发现 {len(cookies)} 个账号")
 
     success_count = 0
     total_count = len(cookies)
-    results = []
 
     for index, cookie in enumerate(cookies):
         try:
@@ -403,12 +373,6 @@ def main():
 
             if is_success:
                 success_count += 1
-
-            results.append({
-                'index': index + 1,
-                'success': is_success,
-                'message': result_msg
-            })
 
             # 发送单个账号通知（统一标题格式）
             status = "成功" if is_success else "失败"

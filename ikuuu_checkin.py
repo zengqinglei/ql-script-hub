@@ -15,7 +15,7 @@ import json
 import re
 import random
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # ---------------- 统一通知模块加载 ----------------
 hadsend = False
@@ -32,7 +32,6 @@ IKUUU_EMAIL = os.environ.get('IKUUU_EMAIL', '')
 IKUUU_PASSWD = os.environ.get('IKUUU_PASSWD', '')
 max_random_delay = int(os.getenv("MAX_RANDOM_DELAY", "3600"))
 random_signin = os.getenv("RANDOM_SIGNIN", "true").lower() == "true"
-privacy_mode = os.getenv("PRIVACY_MODE", "true").lower() == "true"
 
 # ikuuu.de 域名配置
 BASE_URL = 'https://ikuuu.de'
@@ -48,20 +47,6 @@ HEADER = {
     'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
     'x-requested-with': 'XMLHttpRequest'
 }
-
-def mask_email(email):
-    """邮箱脱敏处理"""
-    if not email or '@' not in email:
-        return email
-    
-    if privacy_mode:
-        local, domain = email.split('@', 1)
-        if len(local) <= 2:
-            masked_local = '*' * len(local)
-        else:
-            masked_local = local[0] + '*' * (len(local) - 2) + local[-1]
-        return f"{masked_local}@{domain}"
-    return email
 
 def format_time_remaining(seconds):
     """格式化时间显示"""
@@ -113,7 +98,7 @@ class IkuuuSigner:
     def login(self):
         """用户登录"""
         try:
-            print(f"🔐 正在登录账号: {mask_email(self.email)}")
+            print(f"🔐 正在登录账号: {self.email}")
             print(f"🌐 使用域名: {BASE_URL}")
             
             data = {
@@ -300,7 +285,7 @@ class IkuuuSigner:
         final_msg = f"""🌐 域名：ikuuu.de
 
 👤 账号{self.index}：
-📱 用户：{mask_email(self.email)}
+📱 用户：{self.email}
 📝 签到：{checkin_msg}
 ⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
 
@@ -311,10 +296,7 @@ def main():
     """主程序入口"""
     print(f"==== ikuuu签到开始 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
     print(f"🌐 当前域名: {BASE_URL}")
-    
-    # 显示配置状态
-    print(f"🔒 隐私保护模式: {'已启用' if privacy_mode else '已禁用'}")
-    
+
     # 随机延迟（整体延迟）
     if random_signin:
         delay_seconds = random.randint(0, max_random_delay)
@@ -368,8 +350,7 @@ IKUUU_PASSWD=password1,password2
     
     success_count = 0
     total_count = len(emails)
-    results = []
-    
+
     for index, (email, passwd) in enumerate(zip(emails, passwords)):
         try:
             # 账号间随机等待
@@ -377,28 +358,21 @@ IKUUU_PASSWD=password1,password2
                 delay = random.uniform(5, 15)
                 print(f"⏱️  随机等待 {delay:.1f} 秒后处理下一个账号...")
                 time.sleep(delay)
-            
+
             # 执行签到
             signer = IkuuuSigner(email, passwd, index + 1)
             result_msg, is_success = signer.main()
-            
+
             if is_success:
                 success_count += 1
-            
-            results.append({
-                'index': index + 1,
-                'success': is_success,
-                'message': result_msg,
-                'email': mask_email(email)
-            })
-            
+
             # 发送单个账号通知（统一标题格式）
             status = "成功" if is_success else "失败"
             title = f"[ikuuu]签到{status}"
             notify_user(title, result_msg)
             
         except Exception as e:
-            error_msg = f"账号{index + 1}({mask_email(email)}): 执行异常 - {str(e)}"
+            error_msg = f"账号{index + 1}({email}): 执行异常 - {str(e)}"
             print(f"❌ {error_msg}")
             notify_user(f"ikuuu账号{index + 1}签到失败", error_msg)
     

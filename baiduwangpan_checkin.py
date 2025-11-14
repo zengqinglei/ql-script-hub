@@ -10,7 +10,7 @@ import time
 import re
 import requests
 import random
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # ---------------- 统一通知模块加载 ----------------
 hadsend = False
@@ -27,7 +27,6 @@ BAIDU_DOMAIN = os.getenv("BAIDU_DOMAIN", "https://pan.baidu.com").rstrip("/")
 BAIDU_COOKIE = os.environ.get('BAIDU_COOKIE', '')
 max_random_delay = int(os.getenv("MAX_RANDOM_DELAY", "3600"))
 random_signin = os.getenv("RANDOM_SIGNIN", "true").lower() == "true"
-privacy_mode = os.getenv("PRIVACY_MODE", "true").lower() == "true"
 
 HEADERS = {
     'Connection': 'keep-alive',
@@ -315,13 +314,6 @@ class BaiduPan:
                     elif vip_code == 3:
                         vip_status = "至尊会员"
 
-                # 隐私保护处理
-                if privacy_mode and user != "未知用户":
-                    if len(user) > 2:
-                        user = f"{user[0]}***{user[-1]}"
-                    else:
-                        user = "***"
-
                 level_msg = f"当前会员等级: Lv.{level}，成长值: {value}，会员类型: {vip_status}"
                 self.add_message(level_msg)
 
@@ -362,10 +354,10 @@ class BaiduPan:
 
         # 1. 执行签到
         signin_success, signin_msg = self.signin()
-        
+
         # 2. 随机等待
         time.sleep(random.uniform(2, 5))
-        
+
         # 3. 获取并回答每日问题
         answer_success = False
         answer_msg = ""
@@ -373,11 +365,11 @@ class BaiduPan:
         if answer and ask_id:
             answer_success, answer_msg = self.answer_question(answer, ask_id)
 
-        # 4. 获取用户信息
-        user, level, value, vip_status = self.get_user_info()
-
-        # 5. 获取存储空间信息
+        # 4. 获取存储空间信息（签到后获取）
         storage_info = self.get_storage_info()
+
+        # 5. 获取用户信息（签到后获取，包含签到和答题后的成长值）
+        user, level, value, vip_status = self.get_user_info()
 
         # 6. 组合结果消息（统一模板格式）
         final_msg = f"""🌐 域名：{BAIDU_DOMAIN.replace('https://', '').replace('http://', '')}
@@ -405,10 +397,7 @@ class BaiduPan:
 def main():
     """主程序入口"""
     print(f"==== 百度网盘签到开始 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
-    
-    # 显示配置状态
-    print(f"🔒 隐私保护模式: {'已启用' if privacy_mode else '已禁用'}")
-    
+
     # 随机延迟（整体延迟）
     if random_signin:
         delay_seconds = random.randint(0, max_random_delay)
@@ -417,9 +406,7 @@ def main():
             wait_with_countdown(delay_seconds, "百度网盘签到")
     
     # 获取Cookie配置
-    baidu_cookies = BAIDU_COOKIE
-    
-    if not baidu_cookies:
+    if not BAIDU_COOKIE:
         error_msg = f"""❌ 未找到BAIDU_COOKIE环境变量
 
 🔧 获取Cookie的方法:
@@ -437,17 +424,16 @@ def main():
         return
 
     # 支持多账号（用换行分隔）
-    if '\n' in baidu_cookies:
-        cookies = [cookie.strip() for cookie in baidu_cookies.split('\n') if cookie.strip()]
+    if '\n' in BAIDU_COOKIE:
+        cookies = [cookie.strip() for cookie in BAIDU_COOKIE.split('\n') if cookie.strip()]
     else:
-        cookies = [baidu_cookies.strip()]
+        cookies = [BAIDU_COOKIE.strip()]
     
     print(f"📝 共发现 {len(cookies)} 个账号")
     
     success_count = 0
     total_count = len(cookies)
-    results = []
-    
+
     for index, cookie in enumerate(cookies):
         try:
             # 账号间随机等待
@@ -455,20 +441,14 @@ def main():
                 delay = random.uniform(10, 20)
                 print(f"⏱️  随机等待 {delay:.1f} 秒后处理下一个账号...")
                 time.sleep(delay)
-            
+
             # 执行签到
             baidu_pan = BaiduPan(cookie, index + 1)
             result_msg, is_success = baidu_pan.main()
-            
+
             if is_success:
                 success_count += 1
-            
-            results.append({
-                'index': index + 1,
-                'success': is_success,
-                'message': result_msg
-            })
-            
+
             # 发送单个账号通知
             status = "成功" if is_success else "失败"
             title = f"[百度网盘]签到{status}"
