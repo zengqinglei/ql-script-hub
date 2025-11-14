@@ -28,25 +28,17 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 
 点击页面右上角的 **Fork** 按钮，将本仓库复制到你的账号下。
 
-#### 2. 启用 GitHub Actions
+#### 2. 配置 GitHub Secrets
+
+进入 **Settings** > **Secrets and variables** > **Actions** > **New repository secret**
+
+根据你要使用的服务，参考下方"环境变量配置"章节添加对应的 Secret。
+
+#### 3. 启用 GitHub Actions
 
 1. 进入你 Fork 的仓库
 2. 点击 **Actions** 标签
 3. 点击 **I understand my workflows, go ahead and enable them**
-
-#### 3. 配置 GitHub Secrets
-
-进入 **Settings** > **Secrets and variables** > **Actions** > **New repository secret**
-
-**必配项（推荐）：**
-
-| 变量名 | 说明 | 示例值 |
-|-------|------|-------|
-| `PUSH_KEY` | Server酱推送Key | `SCT300842T...` |
-| `QYWX_KEY` | 企业微信机器人Key | `5036ccf4-7f42...` |
-| `PRIVACY_MODE` | 隐私模式（日志脱敏） | `true` |
-
-**按需配置：** 根据你要使用的服务，参考下方"环境变量配置"章节添加对应的 Secret。
 
 #### 4. 手动触发测试
 
@@ -95,7 +87,7 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 
 - 青龙面板 2.10+
 - 最小配置：CPU > 100m, 内存 > 384MB
-- 推荐配置：CPU > 500m（1 核心）, 内存 > 1GB（2GB）
+- 推荐配置：CPU >= 1000m, 内存 >= 2GB
 
 ### 安装步骤
 
