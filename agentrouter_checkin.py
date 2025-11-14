@@ -448,7 +448,7 @@ class LinuxDoAuthenticator(BaseAuthenticator):
                             await popup_page.wait_for_timeout(1000)  # 轮询间隔
 
                         if not login_success:
-                            print(f"⚠️ [{self.account_name}] 登录���时（45秒），页面可能卡住。")
+                            print(f"⚠️ [{self.account_name}] 登录超时（45秒），页面可能卡住。")
                             return {"success": False, "error": "登录超时，未能跳转或完成验证"}
 
                         print(f"✅ [{self.account_name}] Linux.do 登录流程完成")
@@ -1189,9 +1189,10 @@ async def main_async():
 
     print(f"\n{notification_content}\n")
 
-    # 发送通知 (只在有失败时发送)
-    if success_count < total_count:
-        safe_send_notify("[AgentRouter]签到结果", notification_content)
+    # 发送通知
+    if total_count > 0:
+        title = f"[agentrouter]签到{'成功' if success_count == total_count else '失败'}"
+        safe_send_notify(title, notification_content)
 
     print(f"{'='*80}\n")
 
