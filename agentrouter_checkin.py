@@ -56,7 +56,7 @@ except Exception as e:
 
 
 # ==================== 配置常量 ====================
-BASE_URL = os.getenv("AGENTROUTER_BASE_URL", "https://agentrouter.org")
+BASE_URL = os.getenv("AGENTROUTER_BASE_URL") or "https://agentrouter.org"
 LOGIN_URL = f"{BASE_URL}/login"
 CHECKIN_URL = f"{BASE_URL}/api/user/sign_in"
 USER_INFO_URL = f"{BASE_URL}/api/user/self"

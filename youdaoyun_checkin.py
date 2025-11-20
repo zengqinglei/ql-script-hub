@@ -29,7 +29,7 @@ except ImportError:
     print("⚠️  未加载通知模块，跳过通知功能")
 
 # 配置项
-YOUDAO_DOMAIN = os.getenv("YOUDAO_DOMAIN", "https://note.youdao.com").rstrip("/")
+YOUDAO_DOMAIN = (os.getenv("YOUDAO_DOMAIN") or "https://note.youdao.com").rstrip("/")
 YOUDAO_COOKIE = os.environ.get('YOUDAO_COOKIE', '')
 max_random_delay = int(os.getenv("MAX_RANDOM_DELAY", "3600"))
 random_signin = os.getenv("RANDOM_SIGNIN", "true").lower() == "true"

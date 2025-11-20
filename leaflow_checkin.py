@@ -37,8 +37,8 @@ except Exception as e:
         pass
 
 # ---------------- 配置项 ----------------
-LEAFLOW_DOMAIN = os.getenv("LEAFLOW_DOMAIN", "https://leaflow.net").rstrip("/")
-BASE = os.getenv("LEAFLOW_BASE", "https://checkin.leaflow.net").rstrip("/")
+LEAFLOW_DOMAIN = (os.getenv("LEAFLOW_DOMAIN") or "https://leaflow.net").rstrip("/")
+BASE = (os.getenv("LEAFLOW_BASE") or "https://checkin.leaflow.net").rstrip("/")
 TIMEOUT = int(os.getenv("TIMEOUT", "60"))
 RETRY_TIMES = int(os.getenv("RETRY_TIMES", "3"))
 RETRY_DELAY = int(os.getenv("RETRY_DELAY", "5"))

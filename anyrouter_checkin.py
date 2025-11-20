@@ -45,7 +45,7 @@ TIMEOUT = int(os.getenv("ANYROUTER_TIMEOUT", "30"))
 DEBUG_MODE = os.getenv("DEBUG_MODE", "false").lower() == "true"
 VERIFY_SSL = os.getenv("ANYROUTER_VERIFY_SSL", "true").lower() == "true"
 MAX_RETRIES = int(os.getenv("ANYROUTER_MAX_RETRIES", "3"))
-BASE_URL = os.getenv("ANYROUTER_BASE_URL", "https://anyrouter.top")  # 支持自定义域名
+BASE_URL = os.getenv("ANYROUTER_BASE_URL") or "https://anyrouter.top"  # 支持自定义域名
 
 # 随机延迟配置
 max_random_delay = int(os.getenv("MAX_RANDOM_DELAY", "3600"))

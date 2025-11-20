@@ -23,7 +23,7 @@ except ImportError:
     print("⚠️  未加载通知模块，跳过通知功能")
 
 # 配置项
-BAIDU_DOMAIN = os.getenv("BAIDU_DOMAIN", "https://pan.baidu.com").rstrip("/")
+BAIDU_DOMAIN = (os.getenv("BAIDU_DOMAIN") or "https://pan.baidu.com").rstrip("/")
 BAIDU_COOKIE = os.environ.get('BAIDU_COOKIE', '')
 max_random_delay = int(os.getenv("MAX_RANDOM_DELAY", "3600"))
 random_signin = os.getenv("RANDOM_SIGNIN", "true").lower() == "true"
