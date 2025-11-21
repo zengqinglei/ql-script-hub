@@ -182,101 +182,27 @@ def format_time_remaining(seconds):
     else:
         return f"{secs}秒"
 
-# ---------------- 随机延迟等待函数 ----------------
-def wait_with_countdown(delay_seconds, account_name):
-    """带倒计时的延迟等待"""
-    if delay_seconds <= 0:
-        return
-        
-    print(f"{account_name} 需要等待 {format_time_remaining(delay_seconds)}")
-    
-    # 显示倒计时（每10秒显示一次，最后10秒每秒显示）
-    remaining = delay_seconds
-    while remaining > 0:
-        if remaining <= 10 or remaining % 10 == 0:
-            print(f"{account_name} 倒计时: {format_time_remaining(remaining)}")
-        
-        sleep_time = 1 if remaining <= 10 else min(10, remaining)
-        time.sleep(sleep_time)
-        remaining -= sleep_time
-
 # ---------------- 主流程 ----------------
 if __name__ == "__main__":
     ns_random = os.getenv("NS_RANDOM", "true")
-    
-    # 随机签到时间窗口配置（秒）
-    max_random_delay = int(os.getenv("MAX_RANDOM_DELAY", "3600"))  # 默认1小时=3600秒
-    random_signin = os.getenv("RANDOM_SIGNIN", "true").lower() == "true"
-    
+
     # 读取Cookie
     all_cookies = os.getenv("NODESEEK_COOKIE", "")
     cookie_list = all_cookies.split("&")
     cookie_list = [c.strip() for c in cookie_list if c.strip()]
-    
+
     print(f"共发现 {len(cookie_list)} 个Cookie")
-    print(f"随机签到: {'启用' if random_signin else '禁用'}")
-    
+
     if len(cookie_list) == 0:
         print("未找到任何Cookie，请设置NODESEEK_COOKIE环境变量")
         exit(1)
-    
-    # 为每个账号生成随机延迟时间
-    signin_schedule = []
-    current_time = datetime.now()
-    
-    if random_signin:
-        print(f"随机签到时间窗口: {max_random_delay // 60} 分钟")
-        print("\n==== 生成签到时间表 ====")
-        
-        for i, cookie in enumerate(cookie_list):
-            account_index = i + 1
-            display_user = f"账号{account_index}"
-            
-            # 为每个账号随机分配延迟时间
-            delay_seconds = random.randint(0, max_random_delay)
-            signin_time = current_time + timedelta(seconds=delay_seconds)
-            
-            signin_schedule.append({
-                'account_index': account_index,
-                'display_user': display_user,
-                'cookie': cookie,
-                'delay_seconds': delay_seconds,
-                'signin_time': signin_time
-            })
-            
-            print(f"{display_user}: 延迟 {format_time_remaining(delay_seconds)} 后签到 "
-                  f"(预计 {signin_time.strftime('%H:%M:%S')} 签到)")
-        
-        # 按延迟时间排序
-        signin_schedule.sort(key=lambda x: x['delay_seconds'])
-        
-        print(f"\n==== 签到执行顺序 ====")
-        for item in signin_schedule:
-            print(f"{item['display_user']}: {item['signin_time'].strftime('%H:%M:%S')}")
-    else:
-        # 不启用随机签到，立即执行所有账号
-        for i, cookie in enumerate(cookie_list):
-            account_index = i + 1
-            display_user = f"账号{account_index}"
-            signin_schedule.append({
-                'account_index': account_index,
-                'display_user': display_user,
-                'cookie': cookie,
-                'delay_seconds': 0,
-                'signin_time': current_time
-            })
-    
+
     print(f"\n==== 开始执行签到任务 ====")
-    
-    # 按计划执行签到
-    for item in signin_schedule:
-        display_user = item['display_user']
-        cookie = item['cookie']
-        delay_seconds = item['delay_seconds']
-        
-        # 等待到指定时间
-        if delay_seconds > 0:
-            wait_with_countdown(delay_seconds, display_user)
+
+    # 执行签到
+    for i, cookie in enumerate(cookie_list):
+        account_index = i + 1
+        display_user = f"账号{account_index}"
         
         print(f"\n==== {display_user} 开始签到 ====")
         print(f"当前时间: {datetime.now().strftime('%H:%M:%S')}")

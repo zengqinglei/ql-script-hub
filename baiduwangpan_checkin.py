@@ -25,8 +25,6 @@ except ImportError:
 # 配置项
 BAIDU_DOMAIN = (os.getenv("BAIDU_DOMAIN") or "https://pan.baidu.com").rstrip("/")
 BAIDU_COOKIE = os.environ.get('BAIDU_COOKIE', '')
-max_random_delay = int(os.getenv("MAX_RANDOM_DELAY", "3600"))
-random_signin = os.getenv("RANDOM_SIGNIN", "true").lower() == "true"
 
 HEADERS = {
     'Connection': 'keep-alive',
@@ -44,32 +42,6 @@ HEADERS = {
     'Accept-Encoding': 'gzip, deflate',
     'Accept-Language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
 }
-
-def format_time_remaining(seconds):
-    """格式化时间显示"""
-    if seconds <= 0:
-        return "立即执行"
-    hours, minutes = divmod(seconds, 3600)
-    minutes, secs = divmod(minutes, 60)
-    if hours > 0:
-        return f"{hours}小时{minutes}分{secs}秒"
-    elif minutes > 0:
-        return f"{minutes}分{secs}秒"
-    else:
-        return f"{secs}秒"
-
-def wait_with_countdown(delay_seconds, task_name):
-    """带倒计时的随机延迟等待"""
-    if delay_seconds <= 0:
-        return
-    print(f"{task_name} 需要等待 {format_time_remaining(delay_seconds)}")
-    remaining = delay_seconds
-    while remaining > 0:
-        if remaining <= 10 or remaining % 10 == 0:
-            print(f"{task_name} 倒计时: {format_time_remaining(remaining)}")
-        sleep_time = 1 if remaining <= 10 else min(10, remaining)
-        time.sleep(sleep_time)
-        remaining -= sleep_time
 
 def notify_user(title, content):
     """统一通知函数"""
@@ -398,13 +370,6 @@ def main():
     """主程序入口"""
     print(f"==== 百度网盘签到开始 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
 
-    # 随机延迟（整体延迟）
-    if random_signin:
-        delay_seconds = random.randint(0, max_random_delay)
-        if delay_seconds > 0:
-            print(f"🎲 随机延迟: {format_time_remaining(delay_seconds)}")
-            wait_with_countdown(delay_seconds, "百度网盘签到")
-    
     # 获取Cookie配置
     if not BAIDU_COOKIE:
         error_msg = f"""❌ 未找到BAIDU_COOKIE环境变量

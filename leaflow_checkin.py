@@ -42,8 +42,6 @@ BASE = (os.getenv("LEAFLOW_BASE") or "https://checkin.leaflow.net").rstrip("/")
 TIMEOUT = int(os.getenv("TIMEOUT", "60"))
 RETRY_TIMES = int(os.getenv("RETRY_TIMES", "3"))
 RETRY_DELAY = int(os.getenv("RETRY_DELAY", "5"))
-RANDOM_SIGNIN = os.getenv("RANDOM_SIGNIN", "true").lower() == "true"
-MAX_RANDOM_DELAY = int(os.getenv("MAX_RANDOM_DELAY", "3600"))
 NOTIFY_ON_ALREADY = os.getenv("NOTIFY_ON_ALREADY", "true").lower() == "true"  # 已签到是否通知
 DEBUG_MODE = os.getenv("DEBUG_MODE", "false").lower() == "true"  # 调试模式
 
@@ -444,18 +442,6 @@ def format_time_remaining(seconds: int) -> str:
     if m > 0:
         return f"{m}分{s}秒"
     return f"{s}秒"
-def wait_with_countdown(delay_seconds: int, tag: str):
-    if delay_seconds <= 0:
-        return
-    print(f"{tag} 需要等待 {format_time_remaining(delay_seconds)}")
-    remaining = delay_seconds
-    while remaining > 0:
-        if remaining <= 10 or remaining % 10 == 0:
-            print(f"{tag} 倒计时: {format_time_remaining(remaining)}")
-        step = 1 if remaining <= 10 else min(10, remaining)
-        time.sleep(step)
-        remaining -= step
-
 def format_user_info(user_info: dict) -> str:
     """格式化用户信息为通知文本"""
     if not user_info:
@@ -533,29 +519,6 @@ def main():
         print("💡 请确保 LEAFLOW_COOKIE 格式为 JSON 数组")
         sys.exit(1)
 
-    print(f"随机签到: {'启用' if RANDOM_SIGNIN else '禁用'}")
-    if RANDOM_SIGNIN:
-        print(f"随机签到时间窗口: {MAX_RANDOM_DELAY // 60} 分钟")
-
-    schedule = []
-    base_time = now_sh()
-    for i, account_config in enumerate(cookie_list, 1):
-        delay = random.randint(0, MAX_RANDOM_DELAY) if RANDOM_SIGNIN else 0
-        schedule.append({
-            "idx": i,
-            "account": account_config,
-            "delay": delay,
-            "time": base_time + timedelta(seconds=delay),
-            "name": f"账号{i}"
-        })
-
-    schedule.sort(key=lambda x: x["delay"])
-
-    if RANDOM_SIGNIN and len(schedule) > 1:
-        print("\n==== 签到执行顺序 ====")
-        for it in schedule:
-            print(f"{it['name']}: 预计 {it['time'].strftime('%H:%M:%S')} 执行")
-
     print("\n==== 开始执行签到任务 ====\n")
 
     success_count = 0
@@ -563,16 +526,13 @@ def main():
     fail_count = 0
     total_amount = 0.0
 
-    for it in schedule:
-        name = it["name"]
-
-        if it["delay"] > 0:
-            wait_with_countdown(it["delay"], name)
+    for i, account_config in enumerate(cookie_list, 1):
+        name = f"账号{i}"
 
         print(f"\n==== {name} 开始签到 ====")
         print(f"当前时间: {datetime.now().strftime('%H:%M:%S')}")
 
-        status, msg, amount, user_info = sign_with_retry(it["account"], name)
+        status, msg, amount, user_info = sign_with_retry(account_config, name)
 
         if status == "success":
             success_count += 1

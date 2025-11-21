@@ -45,10 +45,6 @@ try:
 except ImportError:
     print("⚠️  未加载通知模块，跳过通知功能")
 
-# 随机延迟配置
-max_random_delay = int(os.getenv("MAX_RANDOM_DELAY", "3600"))
-random_signin = os.getenv("RANDOM_SIGNIN", "true").lower() == "true"
-
 # 全局日志变量
 send_msg = ''
 one_msg = ''
@@ -60,38 +56,6 @@ def Log(cont=''):
     if cont:
         one_msg += f'{cont}\n'
         send_msg += f'{cont}\n'
-
-def format_time_remaining(seconds):
-    """格式化时间显示"""
-    if seconds <= 0:
-        return "立即执行"
-    
-    hours = seconds // 3600
-    minutes = (seconds % 3600) // 60
-    secs = seconds % 60
-    
-    if hours > 0:
-        return f"{hours}小时{minutes}分{secs}秒"
-    elif minutes > 0:
-        return f"{minutes}分{secs}秒"
-    else:
-        return f"{secs}秒"
-
-def wait_with_countdown(delay_seconds, task_name):
-    """带倒计时的随机延迟等待"""
-    if delay_seconds <= 0:
-        return
-        
-    Log(f"{task_name} 需要等待 {format_time_remaining(delay_seconds)}")
-    
-    remaining = delay_seconds
-    while remaining > 0:
-        if remaining <= 10 or remaining % 10 == 0:
-            Log(f"{task_name} 倒计时: {format_time_remaining(remaining)}")
-        
-        sleep_time = 1 if remaining <= 10 else min(10, remaining)
-        time.sleep(sleep_time)
-        remaining -= sleep_time
 
 inviteId = ['']
 
@@ -658,16 +622,7 @@ if __name__ == '__main__':
     ENV_NAME = 'sfsyUrl'
     
     print(f"==== 顺丰速运签到开始 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
-    
-    # 随机延迟（整体延迟）
-    if random_signin:
-        delay_seconds = random.randint(0, max_random_delay)
-        if delay_seconds > 0:
-            signin_time = datetime.now() + timedelta(seconds=delay_seconds)
-            print(f"🎲 随机模式: 延迟 {format_time_remaining(delay_seconds)} 后开始")
-            print(f"⏰ 预计开始时间: {signin_time.strftime('%H:%M:%S')}")
-            wait_with_countdown(delay_seconds, "顺丰签到")
-    
+
     token = os.getenv(ENV_NAME)
     tokens = token.split('\n') if token else []
     if tokens:

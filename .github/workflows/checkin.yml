@@ -105,8 +105,6 @@ jobs:
         env:
           # 全局配置
           PRIVACY_MODE: ${{ secrets.PRIVACY_MODE }}
-          RANDOM_SIGNIN: ${{ secrets.RANDOM_SIGNIN }}
-          MAX_RANDOM_DELAY: ${{ secrets.MAX_RANDOM_DELAY }}
 
           # 通知配置
           PUSH_KEY: ${{ secrets.PUSH_KEY }}

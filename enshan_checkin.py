@@ -22,8 +22,6 @@ except ImportError:
 
 # 配置项
 enshan_cookie = os.environ.get('enshan_cookie', '')
-max_random_delay = int(os.getenv("MAX_RANDOM_DELAY", "3600"))
-random_signin = os.getenv("RANDOM_SIGNIN", "true").lower() == "true"
 privacy_mode = os.getenv("PRIVACY_MODE", "true").lower() == "true"
 
 # 恩山论坛配置
@@ -54,32 +52,6 @@ def mask_username(username):
         else:
             return username[0] + '*' * 3 + username[-1]
     return username
-
-def format_time_remaining(seconds):
-    """格式化时间显示"""
-    if seconds <= 0:
-        return "立即执行"
-    hours, minutes = divmod(seconds, 3600)
-    minutes, secs = divmod(minutes, 60)
-    if hours > 0:
-        return f"{hours}小时{minutes}分{secs}秒"
-    elif minutes > 0:
-        return f"{minutes}分{secs}秒"
-    else:
-        return f"{secs}秒"
-
-def wait_with_countdown(delay_seconds, task_name):
-    """带倒计时的随机延迟等待"""
-    if delay_seconds <= 0:
-        return
-    print(f"{task_name} 需要等待 {format_time_remaining(delay_seconds)}")
-    remaining = delay_seconds
-    while remaining > 0:
-        if remaining <= 10 or remaining % 10 == 0:
-            print(f"{task_name} 倒计时: {format_time_remaining(remaining)}")
-        sleep_time = 1 if remaining <= 10 else min(10, remaining)
-        time.sleep(sleep_time)
-        remaining -= sleep_time
 
 def notify_user(title, content):
     """统一通知函数"""
@@ -386,14 +358,7 @@ def main():
     
     # 显示配置状态
     print(f"🔒 隐私保护模式: {'已启用' if privacy_mode else '已禁用'}")
-    
-    # 随机延迟（整体延迟）
-    if random_signin:
-        delay_seconds = random.randint(0, max_random_delay)
-        if delay_seconds > 0:
-            print(f"🎲 随机延迟: {format_time_remaining(delay_seconds)}")
-            wait_with_countdown(delay_seconds, "恩山论坛签到")
-    
+
     # 获取Cookie配置
     if not enshan_cookie:
         error_msg = """❌ 未找到enshan_cookie环境变量

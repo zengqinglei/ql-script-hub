@@ -30,8 +30,6 @@ except ImportError:
 # 配置项
 IKUUU_EMAIL = os.environ.get('IKUUU_EMAIL', '')
 IKUUU_PASSWD = os.environ.get('IKUUU_PASSWD', '')
-max_random_delay = int(os.getenv("MAX_RANDOM_DELAY", "3600"))
-random_signin = os.getenv("RANDOM_SIGNIN", "true").lower() == "true"
 
 # ikuuu.de 域名配置
 BASE_URL = 'https://ikuuu.de'
@@ -47,32 +45,6 @@ HEADER = {
     'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
     'x-requested-with': 'XMLHttpRequest'
 }
-
-def format_time_remaining(seconds):
-    """格式化时间显示"""
-    if seconds <= 0:
-        return "立即执行"
-    hours, minutes = divmod(seconds, 3600)
-    minutes, secs = divmod(minutes, 60)
-    if hours > 0:
-        return f"{hours}小时{minutes}分{secs}秒"
-    elif minutes > 0:
-        return f"{minutes}分{secs}秒"
-    else:
-        return f"{secs}秒"
-
-def wait_with_countdown(delay_seconds, task_name):
-    """带倒计时的随机延迟等待"""
-    if delay_seconds <= 0:
-        return
-    print(f"{task_name} 需要等待 {format_time_remaining(delay_seconds)}")
-    remaining = delay_seconds
-    while remaining > 0:
-        if remaining <= 10 or remaining % 10 == 0:
-            print(f"{task_name} 倒计时: {format_time_remaining(remaining)}")
-        sleep_time = 1 if remaining <= 10 else min(10, remaining)
-        time.sleep(sleep_time)
-        remaining -= sleep_time
 
 def notify_user(title, content):
     """统一通知函数"""
@@ -297,13 +269,6 @@ def main():
     print(f"==== ikuuu签到开始 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
     print(f"🌐 当前域名: {BASE_URL}")
 
-    # 随机延迟（整体延迟）
-    if random_signin:
-        delay_seconds = random.randint(0, max_random_delay)
-        if delay_seconds > 0:
-            print(f"🎲 随机延迟: {format_time_remaining(delay_seconds)}")
-            wait_with_countdown(delay_seconds, "ikuuu签到")
-    
     # 获取账号配置
     emails = IKUUU_EMAIL.split(',') if IKUUU_EMAIL else []
     passwords = IKUUU_PASSWD.split(',') if IKUUU_PASSWD else []

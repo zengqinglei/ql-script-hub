@@ -47,45 +47,6 @@ VERIFY_SSL = os.getenv("ANYROUTER_VERIFY_SSL", "true").lower() == "true"
 MAX_RETRIES = int(os.getenv("ANYROUTER_MAX_RETRIES", "3"))
 BASE_URL = os.getenv("ANYROUTER_BASE_URL") or "https://anyrouter.top"  # 支持自定义域名
 
-# 随机延迟配置
-max_random_delay = int(os.getenv("MAX_RANDOM_DELAY", "3600"))
-random_signin = os.getenv("RANDOM_SIGNIN", "true").lower() == "true"
-
-
-def format_time_remaining(seconds):
-    """格式化时间显示"""
-    if seconds <= 0:
-        return "立即执行"
-
-    hours = seconds // 3600
-    minutes = (seconds % 3600) // 60
-    secs = seconds % 60
-
-    if hours > 0:
-        return f"{hours}小时{minutes}分{secs}秒"
-    elif minutes > 0:
-        return f"{minutes}分{secs}秒"
-    else:
-        return f"{secs}秒"
-
-
-def wait_with_countdown(delay_seconds):
-    """带倒计时的等待"""
-    if delay_seconds <= 0:
-        return
-
-    print(f"AnyRouter签到需要等待 {format_time_remaining(delay_seconds)}")
-
-    remaining = delay_seconds
-    while remaining > 0:
-        if remaining <= 10 or remaining % 10 == 0:
-            print(f"倒计时: {format_time_remaining(remaining)}")
-
-        sleep_time = 1 if remaining <= 10 else min(10, remaining)
-        time.sleep(sleep_time)
-        remaining -= sleep_time
-
-
 def safe_send_notify(title, content):
     """安全的通知发送（带日志）"""
     if not hadsend:
@@ -569,13 +530,6 @@ def main():
     if DEBUG_MODE:
         print(f"  🐛 调试模式: 已启用")
     print(f"{'='*50}\n")
-
-    # 随机延迟（可选）
-    if random_signin:
-        delay_seconds = random.randint(0, max_random_delay)
-        if delay_seconds > 0:
-            print(f"随机模式: 延迟 {format_time_remaining(delay_seconds)} 后签到\n")
-            wait_with_countdown(delay_seconds)
 
     # 加载账号配置
     accounts = load_accounts()

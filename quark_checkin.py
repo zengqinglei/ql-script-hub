@@ -20,42 +20,6 @@ try:
 except ImportError:
     print("⚠️  未加载通知模块，跳过通知功能")
 
-# 随机延迟配置
-max_random_delay = int(os.getenv("MAX_RANDOM_DELAY", "3600"))
-random_signin = os.getenv("RANDOM_SIGNIN", "true").lower() == "true"
-
-def format_time_remaining(seconds):
-    """格式化时间显示"""
-    if seconds <= 0:
-        return "立即执行"
-
-    hours = seconds // 3600
-    minutes = (seconds % 3600) // 60
-    secs = seconds % 60
-
-    if hours > 0:
-        return f"{hours}小时{minutes}分{secs}秒"
-    elif minutes > 0:
-        return f"{minutes}分{secs}秒"
-    else:
-        return f"{secs}秒"
-
-def wait_with_countdown(delay_seconds):
-    """带倒计时的等待"""
-    if delay_seconds <= 0:
-        return
-
-    print(f"夸克签到需要等待 {format_time_remaining(delay_seconds)}")
-
-    remaining = delay_seconds
-    while remaining > 0:
-        if remaining <= 10 or remaining % 10 == 0:
-            print(f"倒计时: {format_time_remaining(remaining)}")
-
-        sleep_time = 1 if remaining <= 10 else min(10, remaining)
-        time.sleep(sleep_time)
-        remaining -= sleep_time
-
 def get_env():
     """获取环境变量"""
     if "QUARK_COOKIE" in os.environ:
@@ -283,13 +247,6 @@ def main():
 
 if __name__ == "__main__":
     print(f"==== 夸克网盘签到开始 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
-
-    # 随机延迟（可选）
-    if random_signin:
-        delay_seconds = random.randint(0, max_random_delay)
-        if delay_seconds > 0:
-            print(f"随机模式: 延迟 {format_time_remaining(delay_seconds)} 后签到")
-            wait_with_countdown(delay_seconds)
 
     print("----------夸克网盘开始尝试签到----------")
     main()

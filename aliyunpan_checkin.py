@@ -35,36 +35,8 @@ except ImportError:
     print("⚠️  未加载通知模块，跳过通知功能")
 
 # 配置项
-max_random_delay = int(os.getenv("MAX_RANDOM_DELAY", "3600"))
-random_signin = os.getenv("RANDOM_SIGNIN", "true").lower() == "true"
 auto_update_token = os.getenv("AUTO_UPDATE_TOKEN", "true").lower() == "true"
 show_token_in_notification = os.getenv("SHOW_TOKEN_IN_NOTIFICATION", "false").lower() == "true"  # 通知中是否显示token
-
-def format_time_remaining(seconds):
-    """格式化时间显示"""
-    if seconds <= 0:
-        return "立即执行"
-    hours, minutes = divmod(seconds, 3600)
-    minutes, secs = divmod(minutes, 60)
-    if hours > 0:
-        return f"{hours}小时{minutes}分{secs}秒"
-    elif minutes > 0:
-        return f"{minutes}分{secs}秒"
-    else:
-        return f"{secs}秒"
-
-def wait_with_countdown(delay_seconds, task_name):
-    """带倒计时的随机延迟等待"""
-    if delay_seconds <= 0:
-        return
-    print(f"{task_name} 需要等待 {format_time_remaining(delay_seconds)}")
-    remaining = delay_seconds
-    while remaining > 0:
-        if remaining <= 10 or remaining % 10 == 0:
-            print(f"{task_name} 倒计时: {format_time_remaining(remaining)}")
-        sleep_time = 1 if remaining <= 10 else min(10, remaining)
-        time.sleep(sleep_time)
-        remaining -= sleep_time
 
 def notify_user(title, content):
     """统一通知函数"""
@@ -721,15 +693,7 @@ def main():
     # 显示配置状态
     print(f"🤖 自动更新Token: {'已启用' if auto_update_token else '已禁用'}")
     print(f"🔑 通知显示Token: {'是' if show_token_in_notification else '否'}")
-    
-    # 随机延迟（整体延迟）
-    if random_signin:
-        delay_seconds = random.randint(0, max_random_delay)
-        if delay_seconds > 0:
-            signin_time = datetime.now() + timedelta(seconds=delay_seconds)
-            print(f"🎲 随机延迟: {format_time_remaining(delay_seconds)}")
-            wait_with_countdown(delay_seconds, "阿里云盘签到")
-    
+
     # 获取refresh_token配置
     aliyun_tokens = os.getenv("ALIYUN_REFRESH_TOKEN", "")
     
