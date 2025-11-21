@@ -226,19 +226,7 @@ class IkuuuSigner:
         print(f"\n==== ikuuu账号{self.index} 开始签到 ====")
         
         if not self.email.strip() or not self.passwd.strip():
-            error_msg = """账号配置错误
-
-❌ 错误原因: 邮箱或密码为空
-
-🔧 解决方法:
-1. 在青龙面板中添加环境变量IKUUU_EMAIL（邮箱地址）
-2. 在青龙面板中添加环境变量IKUUU_PASSWD（对应密码）
-3. 多账号用英文逗号分隔: email1,email2
-4. 密码顺序要与邮箱顺序对应
-
-💡 提示: 请确保邮箱和密码正确且一一对应
-🌐 当前域名: ikuuu.de"""
-            
+            error_msg = "❌ 账号配置错误：邮箱或密码为空，请查看 README.md 配置说明"
             print(f"❌ {error_msg}")
             return error_msg, False
 
@@ -278,35 +266,13 @@ def main():
     passwords = [passwd.strip() for passwd in passwords if passwd.strip()]
     
     if not emails or not passwords:
-        error_msg = """❌ 未找到IKUUU_EMAIL或IKUUU_PASSWD环境变量
-
-🔧 配置方法:
-1. IKUUU_EMAIL: 邮箱地址，多个用英文逗号分隔
-2. IKUUU_PASSWD: 对应密码，多个用英文逗号分隔
-3. 邮箱和密码要一一对应
-
-示例:
-IKUUU_EMAIL=user1@example.com,user2@example.com
-IKUUU_PASSWD=password1,password2
-
-💡 提示: 请确保邮箱和密码数量一致且顺序对应
-🌐 当前域名: ikuuu.de"""
-        
+        error_msg = "❌ 未找到IKUUU_EMAIL或IKUUU_PASSWD环境变量，请查看 README.md 配置说明"
         print(error_msg)
         notify_user("ikuuu签到失败", error_msg)
         return
-    
+
     if len(emails) != len(passwords):
-        error_msg = f"""❌ 邮箱和密码数量不匹配
-
-📊 当前配置:
-- 邮箱数量: {len(emails)}
-- 密码数量: {len(passwords)}
-
-🔧 解决方法:
-请确保IKUUU_EMAIL和IKUUU_PASSWD环境变量中的账号数量一致
-🌐 当前域名: ikuuu.de"""
-        
+        error_msg = f"❌ 邮箱和密码数量不匹配（邮箱:{len(emails)}，密码:{len(passwords)}），请查看 README.md 配置说明"
         print(error_msg)
         notify_user("ikuuu签到失败", error_msg)
         return

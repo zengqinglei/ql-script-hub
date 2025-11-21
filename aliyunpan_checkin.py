@@ -698,19 +698,7 @@ def main():
     aliyun_tokens = os.getenv("ALIYUN_REFRESH_TOKEN", "")
     
     if not aliyun_tokens:
-        error_msg = """❌ 未找到ALIYUN_REFRESH_TOKEN环境变量
-
-🔧 获取refresh_token的方法:
-1. 打开阿里云盘网页版: https://www.aliyundrive.com/
-2. 登录您的账号  
-3. 按F12打开开发者工具
-4. 切换到Application标签页
-5. 在左侧找到Local Storage → https://www.aliyundrive.com
-6. 找到token项，复制refresh_token的值
-7. 在青龙面板中添加环境变量ALIYUN_REFRESH_TOKEN
-
-💡 提示: refresh_token通常很长，以字母开头"""
-        
+        error_msg = "❌ 未找到ALIYUN_REFRESH_TOKEN环境变量，请查看 README.md 配置说明"
         print(error_msg)
         notify_user("阿里云盘签到失败", error_msg)
         return

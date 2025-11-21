@@ -297,18 +297,7 @@ def main():
 
     # 获取Cookie配置
     if not YOUDAO_COOKIE:
-        error_msg = """❌ 未找到YOUDAO_COOKIE环境变量
-
-🔧 获取Cookie的方法:
-1. 打开有道云笔记网页版: https://note.youdao.com/
-2. 登录您的账号
-3. 按F12打开开发者工具
-4. 切换到Network标签页，刷新页面
-5. 找到任意请求的Request Headers
-6. 复制完整的Cookie值
-7. 在青龙面板中添加环境变量YOUDAO_COOKIE
-"""
-
+        error_msg = "❌ 未找到YOUDAO_COOKIE环境变量，请查看 README.md 配置说明"
         print(error_msg)
         notify_user("有道云笔记签到失败", error_msg)
         return

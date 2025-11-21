@@ -307,20 +307,7 @@ class BaiduPan:
         print(f"\n==== 百度网盘账号{self.index} 开始签到 ====")
         
         if not self.cookie.strip():
-            error_msg = f"""Cookie配置错误
-
-❌ 错误原因: 未找到BAIDU_COOKIE环境变量
-
-🔧 解决方法:
-1. 打开百度网盘网页版: {BAIDU_DOMAIN}
-2. 登录您的账号
-3. 按F12打开开发者工具
-4. 切换到Network标签页，刷新页面
-5. 找到任意请求的Request Headers
-6. 复制完整的Cookie值
-7. 在青龙面板中添加环境变量BAIDU_COOKIE
-"""
-            
+            error_msg = "❌ Cookie配置错误，请查看 README.md 配置说明"
             print(f"❌ {error_msg}")
             return error_msg, False
 
@@ -372,18 +359,7 @@ def main():
 
     # 获取Cookie配置
     if not BAIDU_COOKIE:
-        error_msg = f"""❌ 未找到BAIDU_COOKIE环境变量
-
-🔧 获取Cookie的方法:
-1. 打开百度网盘网页版: {BAIDU_DOMAIN}
-2. 登录您的账号
-3. 按F12打开开发者工具
-4. 切换到Network标签页，刷新页面
-5. 找到任意请求的Request Headers
-6. 复制完整的Cookie值
-7. 在青龙面板中添加环境变量BAIDU_COOKIE
-"""
-        
+        error_msg = "❌ 未找到BAIDU_COOKIE环境变量，请查看 README.md 配置说明"
         print(error_msg)
         notify_user("百度网盘签到失败", error_msg)
         return

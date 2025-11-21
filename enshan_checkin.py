@@ -274,17 +274,7 @@ class EnShanSigner:
         print(f"\n==== 恩山论坛账号{self.index} 开始签到 ====")
         
         if not self.cookie.strip():
-            error_msg = """账号配置错误
-
-❌ 错误原因: Cookie为空
-
-🔧 解决方法:
-1. 在青龙面板中添加环境变量enshan_cookie
-2. 多账号用换行分隔或&&分隔
-3. Cookie需要包含完整的登录信息
-
-💡 提示: 请确保Cookie有效且格式正确"""
-            
+            error_msg = "❌ Cookie配置错误，请查看 README.md 配置说明"
             print(f"❌ {error_msg}")
             return error_msg, False
 
@@ -361,36 +351,16 @@ def main():
 
     # 获取Cookie配置
     if not enshan_cookie:
-        error_msg = """❌ 未找到enshan_cookie环境变量
-
-🔧 配置方法:
-1. enshan_cookie: 恩山论坛Cookie
-2. 多账号用换行分隔或&&分隔
-3. Cookie需要包含完整的登录信息
-
-示例:
-单账号: enshan_cookie=完整的Cookie字符串
-多账号: enshan_cookie=cookie1&&cookie2 或换行分隔
-
-💡 提示: 登录恩山论坛后，F12复制完整Cookie"""
-        
+        error_msg = "❌ 未找到enshan_cookie环境变量，请查看 README.md 配置说明"
         print(error_msg)
         notify_user("恩山论坛签到失败", error_msg)
         return
-    
+
     # 使用Cookie解析函数
     cookies = parse_cookies(enshan_cookie)
-    
+
     if not cookies:
-        error_msg = """❌ Cookie解析失败
-
-🔧 可能原因:
-1. Cookie格式不正确
-2. Cookie为空或只包含空白字符
-3. 分隔符使用错误
-
-💡 请检查enshan_cookie环境变量的值"""
-        
+        error_msg = "❌ Cookie解析失败，请检查格式是否正确，参考 README.md 配置说明"
         print(error_msg)
         notify_user("恩山论坛签到失败", error_msg)
         return
