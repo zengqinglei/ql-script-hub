@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 cron "23 14 * * *" script-path=xxx.py,tag=匹配cron用
-new Env('nodeseek签到')
+new Env('NodeSeek签到')
 """
 import os
 import time

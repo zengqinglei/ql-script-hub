@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 cron "33 14 * * *" script-path=xxx.py,tag=匹配cron用
-new Env('deepflood签到')
+new Env('DeepFlood签到')
 """
 import os
 import time
