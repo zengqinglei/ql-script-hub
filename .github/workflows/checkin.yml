@@ -61,8 +61,8 @@ jobs:
 
       - name: 安装依赖
         run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          python -m pip install --upgrade pip --quiet
+          if [ -f requirements.txt ]; then pip install -r requirements.txt --quiet; fi
 
       - name: 获取 Playwright 版本
         id: playwright-version
@@ -94,7 +94,7 @@ jobs:
         run: |
           # 复制 notify.py 到根目录，供签到脚本使用
           cp .github/workflows/notify.py ./notify.py
-          echo "✅ notify.py 已准备就绪"
+          echo "通知模块准备就绪"
 
       - name: 连接到 Cloudflare WARP
         uses: fscarmen/warp-on-actions@v1.3
@@ -116,7 +116,7 @@ jobs:
           IKUUU_PASSWD: ${{ secrets.IKUUU_PASSWD }}
 
           # Leaflow 配置
-          LEAFLOW_COOKIE: ${{ secrets.LEAFLOW_COOKIE }}
+          LEAFLOW_COOKIE: ${{ secrets.LEAFFLOW_COOKIE }}
 
           # 阿里云盘配置
           ALIYUN_REFRESH_TOKEN: ${{ secrets.ALIYUN_REFRESH_TOKEN }}
@@ -139,6 +139,8 @@ jobs:
           # 夸克网盘配置
           QUARK_COOKIE: ${{ secrets.QUARK_COOKIE }}
         run: |
+          set +x  # 关闭命令回显
+
           echo "=========================================="
           echo "开始执行签到任务"
           echo "当前时间: $(date '+%Y-%m-%d %H:%M:%S')"
@@ -156,10 +158,10 @@ jobs:
           # 根据选择确定要运行的脚本
           if [ "$RUN_ALL" = "true" ]; then
             SCRIPTS_INPUT="all"
-            echo "📋 运行模式: 所有脚本"
+            echo "运行模式: 所有脚本"
           else
             SCRIPTS_INPUT="$SCRIPT_NAME"
-            echo "📋 运行模式: 单个脚本 - $SCRIPT_NAME"
+            echo "运行模式: 单个脚本 - $SCRIPT_NAME"
           fi
 
           echo ""
@@ -219,33 +221,34 @@ jobs:
 
             # 检查脚本文件是否存在
             if [ ! -f "$script_file" ]; then
-              echo "⚠️ 脚本文件不存在: $script_file"
+              echo "脚本文件不存在: $script_file"
               return
             fi
 
             # 如果是 all 模式，检查环境变量
             if [ "$SCRIPTS_INPUT" = "all" ] || [ "$SCRIPTS_INPUT" = "ALL" ]; then
               if ! check_script_env "$script_name" "${required_envs[@]}"; then
-                echo "⏭️  跳过 $script_name: 未配置所需环境变量 (${required_envs[*]})"
+                echo "跳过 $script_name: 未配置环境变量"
                 return
               fi
             fi
 
             echo ""
             echo "=========================================="
-            echo "🚀 开始执行: $script_name"
+            echo "开始执行: $script_name"
             echo "=========================================="
 
+            # 直接执行脚本，让脚本的Logger输出正常显示
             if python "$script_file"; then
-              echo "✅ $script_name 执行成功"
+              echo "$script_name 执行成功"
             else
-              echo "❌ $script_name 执行失败（退出码: $?）"
+              echo "$script_name 执行失败（退出码: $?）"
             fi
           }
 
           # 执行各个签到脚本（每个脚本后面跟上其必需的环境变量）
           run_script "ikuuu" "ikuuu_checkin.py" "IKUUU_EMAIL" "IKUUU_PASSWD"
-          run_script "leaflow" "leaflow_checkin.py" "LEAFLOW_COOKIE"
+          run_script "leaflow" "leafflow_checkin.py" "LEAFLOW_COOKIE"
           run_script "aliyunpan" "aliyunpan_checkin.py" "ALIYUN_REFRESH_TOKEN"
           run_script "anyrouter" "anyrouter_checkin.py" "ANYROUTER_ACCOUNTS"
           run_script "youdaoyun" "youdaoyun_checkin.py" "YOUDAO_COOKIE"
@@ -275,11 +278,10 @@ jobs:
         run: |
           # 如果配置了 GH_PAT，则尝试自动更新 Secrets
           if [ -n "$GH_PAT" ]; then
-            echo "🔄 开始自动更新 GitHub Secrets..."
+            echo "开始自动更新 GitHub Secrets..."
             python .github/workflows/update_secrets.py
           else
-            echo "⚠️ 未配置 GH_PAT，跳过自动更新 Secrets"
-            echo "💡 如需自动更新环境变量，请参考文档配置 GH_PAT"
+            echo "未配置 GH_PAT，跳过自动更新 Secrets"
           fi
 
       - name: 保存日志

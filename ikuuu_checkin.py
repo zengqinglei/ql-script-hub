@@ -9,6 +9,13 @@ new Env('ikuuu签到')
 感谢原作者的贡献！
 """
 
+import sys
+import io
+
+# 设置标准输出编码为UTF-8（解决Windows环境emoji显示问题）
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
 import os
 import requests
 import json
@@ -17,15 +24,40 @@ import random
 import time
 from datetime import datetime
 
+# ---------------- 日志类 ----------------
+class Logger:
+    def __init__(self):
+        self.debug_mode = os.getenv("DEBUG_MODE", "false").lower() == "true"
+
+    def log(self, level, message):
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        formatted_msg = f"[{timestamp}] [{level}] {message}"
+        print(formatted_msg)
+
+    def info(self, message):
+        self.log("INFO", message)
+
+    def warning(self, message):
+        self.log("WARNING", message)
+
+    def error(self, message):
+        self.log("ERROR", message)
+
+    def debug(self, message):
+        if self.debug_mode:
+            self.log("DEBUG", message)
+
+logger = Logger()
+
 # ---------------- 统一通知模块加载 ----------------
 hadsend = False
 send = None
 try:
     from notify import send
     hadsend = True
-    print("✅ 已加载notify.py通知模块")
+    logger.info("已加载notify.py通知模块")
 except ImportError:
-    print("⚠️  未加载通知模块，跳过通知功能")
+    logger.info("未加载通知模块，跳过通知功能")
 
 # 配置项
 IKUUU_EMAIL = os.environ.get('IKUUU_EMAIL', '')
@@ -46,16 +78,16 @@ HEADER = {
     'x-requested-with': 'XMLHttpRequest'
 }
 
-def notify_user(title, content):
+def safe_send_notify(title, content):
     """统一通知函数"""
     if hadsend:
         try:
             send(title, content)
-            print(f"✅ 通知发送完成: {title}")
+            logger.info(f"通知推送成功: {title}")
         except Exception as e:
-            print(f"❌ 通知发送失败: {e}")
+            logger.error(f"通知推送失败: {e}")
     else:
-        print(f"📢 {title}\n📄 {content}")
+        logger.info(f"通知: {title}")
 
 class IkuuuSigner:
     name = "ikuuu"
@@ -69,79 +101,80 @@ class IkuuuSigner:
 
     def login(self):
         """用户登录"""
+        logger.info(f"开始登录...")
+        logger.info(f"账号: {self.email}")
+        logger.info(f"使用域名: {BASE_URL}")
+
         try:
-            print(f"🔐 正在登录账号: {self.email}")
-            print(f"🌐 使用域名: {BASE_URL}")
-            
             data = {
                 'email': self.email,
                 'passwd': self.passwd
             }
-            
+
             response = self.session.post(
-                url=LOGIN_URL, 
-                data=data, 
+                url=LOGIN_URL,
+                data=data,
                 timeout=15
             )
-            
-            print(f"🔍 登录响应状态码: {response.status_code}")
-            
+
+            logger.debug(f"API 请求：POST {LOGIN_URL} {response.status_code}")
+            logger.debug(f"响应：{response.text[:300]}")
+
             if response.status_code == 200:
                 try:
                     result = response.json()
-                    print(f"🔍 登录响应: {result}")
-                    
+
                     if result.get('ret') == 1:
-                        print(f"✅ 登录成功: {result.get('msg', '登录成功')}")
+                        logger.info("登录成功")
                         return True, "登录成功"
                     else:
                         error_msg = result.get('msg', '登录失败')
-                        print(f"❌ 登录失败: {error_msg}")
+                        logger.error(f"登录失败，原因：{error_msg}")
                         return False, f"登录失败: {error_msg}"
-                        
+
                 except json.JSONDecodeError:
-                    print(f"❌ 登录响应格式错误: {response.text[:200]}")
+                    logger.error(f"登录失败，原因：响应格式错误 - {response.text[:200]}")
                     return False, "登录响应格式错误"
             else:
                 error_msg = f"登录请求失败，状态码: {response.status_code}"
-                print(f"❌ {error_msg}")
+                logger.error(f"登录失败，原因：{error_msg}")
                 return False, error_msg
-                
+
         except requests.exceptions.Timeout:
             error_msg = "登录请求超时"
-            print(f"❌ {error_msg}")
+            logger.error(f"登录失败，原因：{error_msg}")
             return False, error_msg
         except requests.exceptions.ConnectionError:
             error_msg = "网络连接错误，请检查域名是否正确"
-            print(f"❌ {error_msg}")
+            logger.error(f"登录失败，原因：{error_msg}")
             return False, error_msg
         except Exception as e:
             error_msg = f"登录异常: {str(e)}"
-            print(f"❌ {error_msg}")
+            logger.error(f"登录失败，原因：{error_msg}")
             return False, error_msg
 
     def checkin(self):
         """执行签到"""
+        logger.info("开始签到...")
+
         try:
-            print("📝 正在执行签到...")
-            
             response = self.session.post(
-                url=CHECK_URL, 
+                url=CHECK_URL,
                 timeout=15
             )
-            
-            print(f"🔍 签到响应状态码: {response.status_code}")
-            
+
+            logger.debug(f"API 请求：POST {CHECK_URL} {response.status_code}")
+            logger.debug(f"响应：{response.text[:300]}")
+
             if response.status_code == 200:
                 try:
                     result = response.json()
-                    print(f"🔍 签到响应: {result}")
-                    
+
                     msg = result.get('msg', '签到完成')
-                    
+
                     # 从签到响应中提取流量奖励信息
                     traffic_reward = self.extract_traffic_reward(msg, result)
-                    
+
                     # 判断签到结果
                     if result.get('ret') == 1:
                         success_msg = f"签到成功"
@@ -149,41 +182,43 @@ class IkuuuSigner:
                             success_msg += f"，获得流量: {traffic_reward}"
                         else:
                             success_msg += f"，{msg}"
-                        print(f"✅ {success_msg}")
+                        logger.info(success_msg)
                         return True, success_msg
                     elif "已经签到" in msg or "already" in msg.lower() or result.get('ret') == 0:
                         already_msg = f"今日已签到"
                         if "已经签到" not in msg:
                             already_msg += f": {msg}"
-                        print(f"📅 {already_msg}")
+                        logger.info(already_msg)
                         return True, already_msg
                     else:
-                        print(f"❌ 签到失败: {msg}")
+                        logger.error(f"签到失败，原因：{msg}")
                         return False, f"签到失败: {msg}"
-                        
+
                 except json.JSONDecodeError:
-                    print(f"❌ 签到响应格式错误: {response.text[:200]}")
+                    logger.error(f"签到失败，原因：响应格式错误 - {response.text[:200]}")
                     return False, "签到响应格式错误"
             else:
                 error_msg = f"签到请求失败，状态码: {response.status_code}"
-                print(f"❌ {error_msg}")
+                logger.error(f"签到失败，原因：{error_msg}")
                 return False, error_msg
-                
+
         except requests.exceptions.Timeout:
             error_msg = "签到请求超时"
-            print(f"❌ {error_msg}")
+            logger.error(f"签到失败，原因：{error_msg}")
             return False, error_msg
         except requests.exceptions.ConnectionError:
             error_msg = "网络连接错误"
-            print(f"❌ {error_msg}")
+            logger.error(f"签到失败，原因：{error_msg}")
             return False, error_msg
         except Exception as e:
             error_msg = f"签到异常: {str(e)}"
-            print(f"❌ {error_msg}")
+            logger.error(f"签到失败，原因：{error_msg}")
             return False, error_msg
 
     def extract_traffic_reward(self, msg, result):
         """从签到响应中提取流量奖励信息"""
+        logger.debug("开始提取流量奖励信息...")
+
         try:
             # 常见的流量奖励格式
             traffic_patterns = [
@@ -195,15 +230,15 @@ class IkuuuSigner:
                 r'流量.*?(\d+(?:\.\d+)?)\s*([KMGT]?B)',     # 流量 100MB
                 r'(\d+(?:\.\d+)?)\s*([KMGT]?B)',           # 直接的数字+单位
             ]
-            
+
             # 尝试从msg中提取
             for pattern in traffic_patterns:
                 match = re.search(pattern, msg, re.I)
                 if match:
                     traffic = f"{match.group(1)}{match.group(2)}"
-                    print(f"🎁 从消息中提取到流量奖励: {traffic}")
+                    logger.debug(f"从消息中提取到流量奖励: {traffic}")
                     return traffic
-            
+
             # 尝试从result的其他字段中提取
             if isinstance(result, dict):
                 for key, value in result.items():
@@ -212,35 +247,38 @@ class IkuuuSigner:
                             match = re.search(pattern, value, re.I)
                             if match:
                                 traffic = f"{match.group(1)}{match.group(2)}"
-                                print(f"🎁 从{key}字段提取到流量奖励: {traffic}")
+                                logger.debug(f"从{key}字段提取到流量奖励: {traffic}")
                                 return traffic
-            
+
+            logger.debug("未提取到流量奖励信息")
             return None
-            
+
         except Exception as e:
-            print(f"⚠️ 提取流量奖励异常: {e}")
+            logger.warning(f"提取流量奖励异常: {e}")
             return None
 
     def main(self):
         """主执行函数"""
-        print(f"\n==== ikuuu账号{self.index} 开始签到 ====")
-        
+        logger.info(f"\n==== ikuuu账号{self.index} 开始签到 ====")
+
         if not self.email.strip() or not self.passwd.strip():
-            error_msg = "❌ 账号配置错误：邮箱或密码为空，请查看 README.md 配置说明"
-            print(f"❌ {error_msg}")
+            error_msg = "账号配置错误：邮箱或密码为空，请查看 README.md 配置说明"
+            logger.error(error_msg)
             return error_msg, False
 
         # 1. 登录
         login_success, login_msg = self.login()
         if not login_success:
             return f"登录失败: {login_msg}", False
-        
+
         # 2. 随机等待
-        time.sleep(random.uniform(1, 3))
-        
+        delay = random.uniform(1, 3)
+        logger.debug(f"随机等待 {delay:.1f} 秒...")
+        time.sleep(delay)
+
         # 3. 执行签到
         checkin_success, checkin_msg = self.checkin()
-        
+
         # 4. 组合结果消息（统一模板）
         final_msg = f"""🌐 域名：ikuuu.de
 
@@ -249,36 +287,40 @@ class IkuuuSigner:
 📝 签到：{checkin_msg}
 ⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
 
-        print(f"{'✅ 任务完成' if checkin_success else '❌ 任务失败'}")
+        if checkin_success:
+            logger.info("任务完成")
+        else:
+            logger.error("任务失败")
+
         return final_msg, checkin_success
 
 def main():
     """主程序入口"""
-    print(f"==== ikuuu签到开始 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
-    print(f"🌐 当前域名: {BASE_URL}")
+    logger.info(f"==== ikuuu签到开始 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
+    logger.info(f"当前域名: {BASE_URL}")
 
     # 获取账号配置
     emails = IKUUU_EMAIL.split(',') if IKUUU_EMAIL else []
     passwords = IKUUU_PASSWD.split(',') if IKUUU_PASSWD else []
-    
+
     # 清理空白项
     emails = [email.strip() for email in emails if email.strip()]
     passwords = [passwd.strip() for passwd in passwords if passwd.strip()]
-    
+
     if not emails or not passwords:
-        error_msg = "❌ 未找到IKUUU_EMAIL或IKUUU_PASSWD环境变量，请查看 README.md 配置说明"
-        print(error_msg)
-        notify_user("ikuuu签到失败", error_msg)
+        error_msg = "未找到IKUUU_EMAIL或IKUUU_PASSWD环境变量，请查看 README.md 配置说明"
+        logger.error(error_msg)
+        safe_send_notify("ikuuu签到失败", error_msg)
         return
 
     if len(emails) != len(passwords):
-        error_msg = f"❌ 邮箱和密码数量不匹配（邮箱:{len(emails)}，密码:{len(passwords)}），请查看 README.md 配置说明"
-        print(error_msg)
-        notify_user("ikuuu签到失败", error_msg)
+        error_msg = f"邮箱和密码数量不匹配（邮箱:{len(emails)}，密码:{len(passwords)}），请查看 README.md 配置说明"
+        logger.error(error_msg)
+        safe_send_notify("ikuuu签到失败", error_msg)
         return
-    
-    print(f"📝 共发现 {len(emails)} 个账号")
-    
+
+    logger.info(f"共发现 {len(emails)} 个账号")
+
     success_count = 0
     total_count = len(emails)
 
@@ -287,7 +329,7 @@ def main():
             # 账号间随机等待
             if index > 0:
                 delay = random.uniform(5, 15)
-                print(f"⏱️  随机等待 {delay:.1f} 秒后处理下一个账号...")
+                logger.info(f"随机等待 {delay:.1f} 秒后处理下一个账号...")
                 time.sleep(delay)
 
             # 执行签到
@@ -300,13 +342,13 @@ def main():
             # 发送单个账号通知（统一标题格式）
             status = "成功" if is_success else "失败"
             title = f"[ikuuu]签到{status}"
-            notify_user(title, result_msg)
-            
+            safe_send_notify(title, result_msg)
+
         except Exception as e:
             error_msg = f"账号{index + 1}({email}): 执行异常 - {str(e)}"
-            print(f"❌ {error_msg}")
-            notify_user(f"ikuuu账号{index + 1}签到失败", error_msg)
-    
+            logger.error(error_msg)
+            safe_send_notify(f"ikuuu账号{index + 1}签到失败", error_msg)
+
     # 发送汇总通知（统一格式）
     if total_count > 1:
         summary_msg = f"""🌐 域名：ikuuu.de
@@ -317,9 +359,9 @@ def main():
 📈 成功率：{success_count/total_count*100:.1f}%
 ⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
 
-        notify_user("[ikuuu]签到汇总", summary_msg)
-    
-    print(f"\n==== ikuuu签到完成 - 成功{success_count}/{total_count} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
+        safe_send_notify("[ikuuu]签到汇总", summary_msg)
+
+    logger.info(f"\n==== ikuuu签到完成 - 成功{success_count}/{total_count} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
 
 def handler(event, context):
     """云函数入口"""

@@ -5,11 +5,43 @@ cron "1 17 * * *" script-path=xxx.py,tag=匹配cron用
 new Env('NGA论坛签到')
 """
 
+import sys
+import io
+
+# 设置标准输出编码为UTF-8（解决Windows环境emoji显示问题）
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
 import requests
 import os
 import time
 import random
 from datetime import datetime, timedelta
+
+# ---------------- Logger类定义 ----------------
+class Logger:
+    def __init__(self):
+        self.debug_mode = os.getenv("DEBUG_MODE", "false").lower() == "true"
+
+    def log(self, level, message):
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        formatted_msg = f"[{timestamp}] [{level}] {message}"
+        print(formatted_msg)
+
+    def info(self, message):
+        self.log("INFO", message)
+
+    def warning(self, message):
+        self.log("WARNING", message)
+
+    def error(self, message):
+        self.log("ERROR", message)
+
+    def debug(self, message):
+        if self.debug_mode:
+            self.log("DEBUG", message)
+
+logger = Logger()
 
 # ---------------- 统一通知模块加载 ----------------
 hadsend = False
@@ -17,21 +49,21 @@ send = None
 try:
     from notify import send
     hadsend = True
-    print("✅ 已加载notify.py通知模块")
+    logger.info("✅ 已加载notify.py通知模块")
 except ImportError:
-    print("⚠️  未加载通知模块，跳过通知功能")
+    logger.warning("⚠️  未加载通知模块，跳过通知功能")
 
-def send_notification(title, content):
+def safe_send_notify(title, content):
     """统一通知函数"""
     if hadsend:
         try:
             send(title, content)
-            print(f"✅ 通知发送完成: {title}")
+            logger.info(f"✅ 通知发送完成: {title}")
         except Exception as e:
-            print(f"❌ 通知发送失败: {e}")
+            logger.error(f"❌ 通知发送失败: {e}")
     else:
-        print(f"📢 {title}")
-        print(f"📄 {content}")
+        logger.info(f"📢 {title}")
+        logger.info(f"📄 {content}")
 
 class NGAUser:
     def __init__(self, uid, accesstoken, ua, index):
@@ -59,116 +91,123 @@ class NGAUser:
 
         try:
             response = self.session.post(url, data=payload, headers=headers, timeout=30)
+            logger.debug(f"API 请求：POST {url} {response.status_code}")
+            logger.debug(f"响应：{response.text[:300]}")
             response.raise_for_status()
             data = response.json()
             if verbose:
-                print(f"    📡 操作 {lib}/{act} 的服务器响应: {data}")
+                logger.info(f"    操作 {lib}/{act} 的服务器响应: {data}")
             else:
                 result_info = data.get('time') or data.get('code') or str(data)
-                print(f"    ✅ 操作 {lib}/{act} 完成: {result_info}")
+                logger.info(f"    操作 {lib}/{act} 完成: {result_info}")
             return data
         except requests.exceptions.RequestException as e:
-            print(f"    ❌ 请求错误: {e}")
+            logger.error(f"    请求错误: {e}")
             return {"error": ["请求接口出错"]}
         except ValueError:
-            print(f"    ❌ 响应不是有效的JSON: {response.text}")
+            logger.error(f"    响应不是有效的JSON: {response.text}")
             return {"error": ["响应解析出错"]}
 
     def check_in(self):
         """执行签到"""
-        print(f"🎯 账号{self.index}: 开始签到")
+        logger.info(f"账号{self.index} 开始签到...")
         check_in_res = self.nga_get("check_in", "check_in")
-        
+
         if check_in_res and "data" in check_in_res:
             sign_msg = check_in_res['data'][0]
-            print(f"✅ 账号{self.index}: 签到成功 - {sign_msg}")
+            logger.info(f"账号{self.index} 签到成功: {sign_msg}")
             return f"签到成功: {sign_msg}", True, True
         elif check_in_res and "error" in check_in_res:
             error_msg = check_in_res['error'][0]
-            
+
             # 优化判断逻辑：已签到也算成功
             if "已经签到" in str(error_msg) or "今天已经签到了" in str(error_msg):
-                print(f"📅 账号{self.index}: 今日已签到 - {error_msg}")
+                logger.info(f"账号{self.index} 今日已签到: {error_msg}")
                 return f"今日已签到: {error_msg}", True, True  # 已签到算成功
             elif "登录" in str(error_msg) or "CLIENT" in str(error_msg):
-                print(f"❌ 账号{self.index}: 登录状态异常 - {error_msg}")
+                logger.error(f"账号{self.index} 签到失败，原因：登录状态异常 - {error_msg}")
                 return f"签到失败: {error_msg} (登录状态异常)", False, False
             else:
-                print(f"❌ 账号{self.index}: 签到失败 - {error_msg}")
+                logger.error(f"账号{self.index} 签到失败，原因：{error_msg}")
                 return f"签到失败: {error_msg}", False, True  # 其他错误继续执行任务
         else:
-            print(f"❌ 账号{self.index}: 签到失败 - 未知错误")
+            logger.error(f"账号{self.index} 签到失败，原因：未知错误")
             return "签到失败: 未知错误", False, False
 
     def daily_missions(self):
         """执行日常任务"""
-        print(f"🎯 账号{self.index}: 开始执行日常任务")
-        
+        logger.info(f"账号{self.index} 开始执行日常任务...")
+
         missions = [
             ("mid=2", "任务2"),
-            ("mid=131", "任务131"), 
+            ("mid=131", "任务131"),
             ("mid=30", "任务30")
         ]
-        
+
         completed_missions = []
         for mission_param, mission_name in missions:
             try:
                 result = self.nga_get("mission", "checkin_count_add", f"{mission_param}&get_success_repeat=1&no_compatible_fix=1")
                 if result and not result.get("error"):
                     completed_missions.append(mission_name)
-                    print(f"    ✅ {mission_name} 完成")
+                    logger.info(f"    {mission_name} 完成")
                 else:
-                    print(f"    ⚠️ {mission_name} 可能已完成或失败")
+                    logger.warning(f"    {mission_name} 可能已完成或失败")
                 time.sleep(random.uniform(1, 3))
             except Exception as e:
-                print(f"    ❌ {mission_name} 执行异常: {e}")
-        
+                logger.error(f"    {mission_name} 执行异常: {e}")
+
+        logger.info(f"账号{self.index} 日常任务完成，成功{len(completed_missions)}个")
         return completed_missions
 
     def video_missions(self):
         """执行看视频任务"""
-        print(f"🎯 账号{self.index}: 开始执行看视频任务(免广告)")
-        print("    ⏰ 此过程较慢，请耐心等待...")
-        
+        logger.info(f"账号{self.index} 开始执行看视频任务(免广告)...")
+        logger.info("    此过程较慢，请耐心等待...")
+
         # 免广告任务初始化
+        logger.debug("初始化免广告任务")
         self.nga_get("mission", "video_view_task_counter_add_v2_for_adfree_sp1", verbose=True)
-        
+
         # 执行4次免广告任务
         for i in range(4):
             delay = random.randint(30, 45)
-            print(f"    🎬 免广告任务第 {i+1}/4 次，等待 {delay} 秒...")
+            logger.info(f"    免广告任务第 {i+1}/4 次，等待 {delay} 秒...")
             time.sleep(delay)
             self.nga_get("mission", "video_view_task_counter_add_v2_for_adfree", verbose=True)
-        
-        print(f"🎯 账号{self.index}: 开始执行看视频得N币任务")
+
+        logger.info(f"账号{self.index} 开始执行看视频得N币任务...")
         # 执行5次N币任务
         for i in range(5):
             delay = random.randint(30, 45)
-            print(f"    💰 N币任务第 {i+1}/5 次，等待 {delay} 秒...")
+            logger.info(f"    N币任务第 {i+1}/5 次，等待 {delay} 秒...")
             time.sleep(delay)
             self.nga_get("mission", "video_view_task_counter_add_v2", verbose=True)
-        
+
+        logger.info(f"账号{self.index} 视频任务完成")
         return "视频任务完成"
 
     def share_missions(self):
         """执行分享任务"""
-        print(f"🎯 账号{self.index}: 开始执行分享任务")
-        
+        logger.info(f"账号{self.index} 开始执行分享任务...")
+
         tid = random.randint(12345678, 24692245)
+        logger.debug(f"生成随机帖子ID: {tid}")
         for i in range(5):
-            print(f"    📤 分享任务第 {i+1}/5 次")
+            logger.info(f"    分享任务第 {i+1}/5 次")
             self.nga_get("data_query", "topic_share_log_v2", f"event=4&tid={tid}")
             time.sleep(random.uniform(1, 2))
-        
-        print(f"    🎁 领取分享奖励")
+
+        logger.info(f"    领取分享奖励")
         reward_result = self.nga_get("mission", "check_mission", "mid=149&get_success_repeat=1&no_compatible_fix=1")
-        
+
+        logger.info(f"账号{self.index} 分享任务完成")
         return "分享任务完成"
 
     def get_stats(self):
         """查询账户统计信息"""
-        print(f"🎯 账号{self.index}: 查询最终资产")
-        
+        logger.info(f"账号{self.index} 开始查询最终资产...")
+
         stats_res = self.nga_get("check_in", "get_stat")
         if stats_res and "data" in stats_res:
             try:
@@ -177,52 +216,52 @@ class NGAUser:
                 sum_days = sign_info.get('sum', 'N/A')
                 n_coins = money_info.get('money_n', 'N/A')
                 copper_coins = money_info.get('money', 'N/A')
-                
+
                 stats_msg = f"连签: {continued_days}天, 累签: {sum_days}天, N币: {n_coins}, 铜币: {copper_coins}"
-                print(f"    💰 {stats_msg}")
+                logger.info(f"    {stats_msg}")
                 return stats_msg
             except Exception as e:
-                print(f"    ❌ 资产信息解析失败: {e}")
+                logger.error(f"    资产信息解析失败: {e}")
                 return "资产查询失败"
         else:
-            print(f"    ❌ 资产查询失败")
+            logger.error(f"    资产查询失败")
             return "资产查询失败"
 
     def run_all_tasks(self):
         """执行所有任务并返回结果"""
-        print(f"\n==== 账号{self.index} 开始执行 ====")
-        print(f"👤 用户ID: {self.uid}")
-        print(f"🕐 开始时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        
+        logger.info(f"\n==== 账号{self.index} 开始执行 ====")
+        logger.info(f"用户ID: {self.uid}")
+        logger.info(f"开始时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
         results = []
-        
+
         # 1. 签到
         sign_result, sign_success, continue_tasks = self.check_in()
         results.append(sign_result)
-        
+
         if not continue_tasks:
             error_msg = f"❌ 账号{self.index}: {self.uid}\n{sign_result}\n无法继续执行其他任务"
-            print(error_msg)
+            logger.error(error_msg)
             return error_msg, False
-        
+
         try:
             # 2. 日常任务
             daily_results = self.daily_missions()
             if daily_results:
                 results.append(f"日常任务: 完成{len(daily_results)}个任务")
-            
+
             # 3. 视频任务
             video_result = self.video_missions()
             results.append(video_result)
-            
+
             # 4. 分享任务
             share_result = self.share_missions()
             results.append(share_result)
-            
+
             # 5. 查询资产
             stats_result = self.get_stats()
             results.append(f"最终资产: {stats_result}")
-            
+
             # 格式化结果（统一模板格式）
             result_msg = f"""🌐 域名：bbs.nga.cn
 
@@ -232,22 +271,22 @@ class NGAUser:
 {chr(10).join([f'  • {result}' for result in results])}
 ⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
 
-            print(f"\n🎉 === 最终执行结果 ===")
-            print(result_msg)
-            print(f"==== 账号{self.index} 执行完成 ====\n")
-            
+            logger.info(f"\n🎉 === 最终执行结果 ===")
+            logger.info(result_msg)
+            logger.info(f"==== 账号{self.index} 执行完成 ====\n")
+
             # 修复成功判断逻辑：签到成功或已签到都算成功
             is_success = sign_success  # 直接使用签到的成功状态
             return result_msg, is_success
-            
+
         except Exception as e:
             error_msg = f"❌ 账号{self.index}: 任务执行异常 - {str(e)}"
-            print(error_msg)
+            logger.error(error_msg)
             return error_msg, False
 
 def main():
     """主程序入口"""
-    print(f"==== NGA论坛签到开始 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
+    logger.info(f"==== NGA论坛签到开始 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
 
     # 获取环境变量
     credentials_str = os.getenv("NGA_CREDENTIALS", "")
@@ -255,54 +294,54 @@ def main():
 
     if not credentials_str:
         error_msg = "❌ 未找到NGA_CREDENTIALS环境变量，请配置账号信息"
-        print(error_msg)
-        send_notification("[NGA论坛]签到失败", error_msg)
+        logger.error(error_msg)
+        safe_send_notify("[NGA论坛]签到失败", error_msg)
         return
 
     # 解析多账号
     accounts = [acc.strip() for acc in credentials_str.split('&') if acc.strip()]
-    print(f"📝 共发现 {len(accounts)} 个账号")
-    
+    logger.info(f"共发现 {len(accounts)} 个账号")
+
     success_accounts = 0
     all_results = []
-    
+
     for i, account_str in enumerate(accounts):
         try:
             # 账号间随机等待
             if i > 0:
                 delay = random.uniform(10, 30)
-                print(f"💤 随机等待 {delay:.1f} 秒后处理下一个账号...")
+                logger.info(f"随机等待 {delay:.1f} 秒后处理下一个账号...")
                 time.sleep(delay)
-            
+
             # 解析账号信息
             if ',' not in account_str:
                 error_msg = f"❌ 账号{i+1}: 凭证格式错误，应为 'UID,AccessToken'"
-                print(error_msg)
+                logger.error(error_msg)
                 all_results.append(error_msg)
-                send_notification("[NGA论坛]签到失败", error_msg)
+                safe_send_notify("[NGA论坛]签到失败", error_msg)
                 continue
-            
+
             uid, accesstoken = account_str.split(',', 1)
             uid = uid.strip()
             accesstoken = accesstoken.strip()
-            
+
             # 执行任务
             nga_user = NGAUser(uid, accesstoken, ua, i + 1)
             result_msg, is_success = nga_user.run_all_tasks()
             all_results.append(result_msg)
-            
+
             if is_success:
                 success_accounts += 1
-            
+
             # 发送单个账号通知（统一格式）
             title = f"[NGA论坛]签到{'成功' if is_success else '失败'}"
-            send_notification(title, result_msg)
-            
+            safe_send_notify(title, result_msg)
+
         except Exception as e:
             error_msg = f"❌ 账号{i+1}: 处理异常 - {str(e)}"
-            print(error_msg)
+            logger.error(error_msg)
             all_results.append(error_msg)
-            send_notification("[NGA论坛]签到失败", error_msg)
+            safe_send_notify("[NGA论坛]签到失败", error_msg)
 
     # 发送汇总通知（统一格式）
     if len(accounts) > 1:
@@ -313,11 +352,11 @@ def main():
 ❌ 失败：{len(accounts) - success_accounts}个
 📈 成功率：{success_accounts/len(accounts)*100:.1f}%
 ⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
-        send_notification('[NGA论坛]签到汇总', summary_msg)
-        print(f"\n📊 === 汇总统计 ===")
-        print(summary_msg)
-    
-    print(f"\n==== NGA论坛签到完成 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
+        safe_send_notify('[NGA论坛]签到汇总', summary_msg)
+        logger.info(f"\n📊 === 汇总统计 ===")
+        logger.info(summary_msg)
+
+    logger.info(f"\n==== NGA论坛签到完成 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
 
 if __name__ == "__main__":
     main()
