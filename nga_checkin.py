@@ -18,13 +18,23 @@ import time
 import random
 from datetime import datetime, timedelta
 
+# 时区支持
+try:
+    from zoneinfo import ZoneInfo
+    BEIJING_TZ = ZoneInfo("Asia/Shanghai")
+except ImportError:
+    BEIJING_TZ = None
+
 # ---------------- Logger类定义 ----------------
 class Logger:
     def __init__(self):
         self.debug_mode = os.getenv("DEBUG_MODE", "false").lower() == "true"
 
     def log(self, level, message):
-        timestamp = datetime.now().strftime("%H:%M:%S")
+        if BEIJING_TZ:
+            timestamp = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         formatted_msg = f"[{timestamp}] [{level}] {message}"
         print(formatted_msg)
 
@@ -42,6 +52,14 @@ class Logger:
             self.log("DEBUG", message)
 
 logger = Logger()
+
+# ---------------- 时区辅助函数 ----------------
+def now_beijing():
+    """获取北京时间"""
+    if BEIJING_TZ:
+        return datetime.now(BEIJING_TZ)
+    else:
+        return datetime.now()
 
 # ---------------- 统一通知模块加载 ----------------
 hadsend = False
@@ -231,7 +249,7 @@ class NGAUser:
         """执行所有任务并返回结果"""
         logger.info(f"\n==== 账号{self.index} 开始执行 ====")
         logger.info(f"用户ID: {self.uid}")
-        logger.info(f"开始时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info(f"开始时间: {now_beijing().strftime('%Y-%m-%d %H:%M:%S')}")
 
         results = []
 
@@ -269,7 +287,7 @@ class NGAUser:
 📱 用户：{self.uid}
 📊 执行结果：
 {chr(10).join([f'  • {result}' for result in results])}
-⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+⏰ 时间：{now_beijing().strftime('%Y-%m-%d %H:%M:%S')}"""
 
             logger.info(f"\n🎉 === 最终执行结果 ===")
             logger.info(result_msg)
@@ -286,7 +304,7 @@ class NGAUser:
 
 def main():
     """主程序入口"""
-    logger.info(f"==== NGA论坛签到开始 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
+    logger.info(f"==== NGA论坛签到开始 - {now_beijing().strftime('%Y-%m-%d %H:%M:%S')} ====")
 
     # 获取环境变量
     credentials_str = os.getenv("NGA_CREDENTIALS", "")
@@ -351,12 +369,12 @@ def main():
 ✅ 成功：{success_accounts}个
 ❌ 失败：{len(accounts) - success_accounts}个
 📈 成功率：{success_accounts/len(accounts)*100:.1f}%
-⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+⏰ 完成时间：{now_beijing().strftime('%Y-%m-%d %H:%M:%S')}"""
         safe_send_notify('[NGA论坛]签到汇总', summary_msg)
         logger.info(f"\n📊 === 汇总统计 ===")
         logger.info(summary_msg)
 
-    logger.info(f"\n==== NGA论坛签到完成 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
+    logger.info(f"\n==== NGA论坛签到完成 - {now_beijing().strftime('%Y-%m-%d %H:%M:%S')} ====")
 
 if __name__ == "__main__":
     main()

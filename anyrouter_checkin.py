@@ -22,6 +22,13 @@ import re
 import time
 from datetime import datetime
 
+# 时区支持
+try:
+    from zoneinfo import ZoneInfo
+    BEIJING_TZ = ZoneInfo("Asia/Shanghai")
+except ImportError:
+    BEIJING_TZ = None
+
 import requests
 
 # 导入 execjs（用于执行 WAF JavaScript）
@@ -38,7 +45,10 @@ class Logger:
         self.debug_mode = os.getenv("DEBUG_MODE", "false").lower() == "true"
 
     def log(self, level, message):
-        timestamp = datetime.now().strftime("%H:%M:%S")
+        if BEIJING_TZ:
+            timestamp = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         formatted_msg = f"[{timestamp}] [{level}] {message}"
         print(formatted_msg)
 
@@ -57,6 +67,13 @@ class Logger:
 
 logger = Logger()
 
+# ---------------- 时区辅助函数 ----------------
+def now_beijing():
+    """获取北京时间"""
+    if BEIJING_TZ:
+        return datetime.now(BEIJING_TZ)
+    else:
+        return datetime.now()
 
 # ---------------- 通知模块动态加载 ----------------
 hadsend = False
@@ -552,7 +569,7 @@ def main():
     """主函数"""
     logger.info("="*50)
     logger.info("  AnyRouter 签到脚本 v1.0")
-    logger.info(f"  执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info(f"  执行时间: {now_beijing().strftime('%Y-%m-%d %H:%M:%S')}")
     if DEBUG_MODE:
         logger.info("  调试模式: 已启用")
     logger.info("="*50)
@@ -596,7 +613,7 @@ def main():
                 if user_info:
                     notify_content += f"\n💰 账户：{user_info}"
 
-                notify_content += f"\n⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                notify_content += f"\n⏰ 时间：{now_beijing().strftime('%Y-%m-%d %H:%M:%S')}"
 
                 safe_send_notify("[AnyRouter]签到成功", notify_content)
 
@@ -619,7 +636,7 @@ def main():
                 if user_info:
                     notify_content += f"\n💰 账户：{user_info}"
 
-                notify_content += f"\n⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                notify_content += f"\n⏰ 时间：{now_beijing().strftime('%Y-%m-%d %H:%M:%S')}"
 
                 safe_send_notify("[AnyRouter]签到失败", notify_content)
 
@@ -635,7 +652,7 @@ def main():
                 if username:
                     notify_content += f"\n📱 用户：{username}"
 
-                notify_content += f"\n📝 签到：签到出错 - {msg}\n⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                notify_content += f"\n📝 签到：签到出错 - {msg}\n⏰ 时间：{now_beijing().strftime('%Y-%m-%d %H:%M:%S')}"
 
                 safe_send_notify("[AnyRouter]签到出错", notify_content)
 
@@ -649,7 +666,7 @@ def main():
 
 👤 {name}：
 📝 签到：签到异常 - {error_msg}
-⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+⏰ 时间：{now_beijing().strftime('%Y-%m-%d %H:%M:%S')}"""
 
             safe_send_notify("[AnyRouter]签到异常", notify_content)
 
@@ -660,7 +677,7 @@ def main():
     logger.info("="*50)
     logger.info("  所有账号签到完成")
     logger.info(f"  成功: {success_count} | 失败: {fail_count} | 出错: {error_count}")
-    logger.info(f"  完成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info(f"  完成时间: {now_beijing().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info("="*50)
 
     # 发送汇总通知（仅多账号时，统一格式）
@@ -672,7 +689,7 @@ def main():
 ⚠️ 失败：{fail_count}个
 ❌ 出错：{error_count}个
 📈 成功率：{success_count/len(accounts)*100:.1f}%
-⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+⏰ 完成时间：{now_beijing().strftime('%Y-%m-%d %H:%M:%S')}"""
 
         safe_send_notify("[AnyRouter]签到汇总", summary)
 

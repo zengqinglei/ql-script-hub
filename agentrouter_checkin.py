@@ -27,13 +27,23 @@ import time
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
+# 时区支持
+try:
+    from zoneinfo import ZoneInfo
+    BEIJING_TZ = ZoneInfo("Asia/Shanghai")
+except ImportError:
+    BEIJING_TZ = None
+
 # ==================== 日志类 ====================
 class Logger:
     def __init__(self):
         self.debug_mode = os.getenv("DEBUG_MODE", "false").lower() == "true"
 
     def log(self, level, message):
-        timestamp = datetime.now().strftime("%H:%M:%S")
+        if BEIJING_TZ:
+            timestamp = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         formatted_msg = f"[{timestamp}] [{level}] {message}"
         print(formatted_msg)
 
@@ -51,6 +61,14 @@ class Logger:
             self.log("DEBUG", message)
 
 logger = Logger()
+
+# ---------------- 时区辅助函数 ----------------
+def now_beijing():
+    """获取北京时间"""
+    if BEIJING_TZ:
+        return datetime.now(BEIJING_TZ)
+    else:
+        return datetime.now()
 
 # 导入 Playwright
 try:
@@ -1155,7 +1173,7 @@ async def main_async():
     """异步主函数"""
     logger.info("="*80)
     logger.info("AgentRouter 自动签到脚本 (重构版)")
-    logger.info(f"执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info(f"执行时间: {now_beijing().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"基础URL: {BASE_URL}")
     logger.info(f"浏览器模式: {'无头' if BROWSER_HEADLESS else '有头'}")
     logger.info("="*80)
@@ -1222,7 +1240,7 @@ async def main_async():
             notification_lines.append("")
 
     notification_lines.append(f"📊 统计：成功 {success_count}/{total_count}")
-    notification_lines.append(f"⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    notification_lines.append(f"⏰ 时间：{now_beijing().strftime('%Y-%m-%d %H:%M:%S')}")
 
     notification_content = "\n".join(notification_lines)
 

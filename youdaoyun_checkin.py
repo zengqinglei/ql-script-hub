@@ -18,13 +18,23 @@ import random
 import time
 from datetime import datetime
 
+# 时区支持
+try:
+    from zoneinfo import ZoneInfo
+    BEIJING_TZ = ZoneInfo("Asia/Shanghai")
+except ImportError:
+    BEIJING_TZ = None
+
 # ---------------- 日志类 ----------------
 class Logger:
     def __init__(self):
         self.debug_mode = os.getenv("DEBUG_MODE", "false").lower() == "true"
 
     def log(self, level, message):
-        timestamp = datetime.now().strftime("%H:%M:%S")
+        if BEIJING_TZ:
+            timestamp = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         formatted_msg = f"[{timestamp}] [{level}] {message}"
         print(formatted_msg)
 
@@ -42,6 +52,14 @@ class Logger:
             self.log("DEBUG", message)
 
 logger = Logger()
+
+# ---------------- 时区辅助函数 ----------------
+def now_beijing():
+    """获取北京时间"""
+    if BEIJING_TZ:
+        return datetime.now(BEIJING_TZ)
+    else:
+        return datetime.now()
 
 # ---------------- 统一通知模块加载 ----------------
 hadsend = False
@@ -324,7 +342,7 @@ class YouDaoYun:
             if ad_space > 0:
                 final_msg += f" 观看广告{ad_space}M"
 
-        final_msg += f"\n⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        final_msg += f"\n⏰ 时间：{now_beijing().strftime('%Y-%m-%d %H:%M:%S')}"
 
         is_success = total_space > 0
         if is_success:
@@ -335,13 +353,13 @@ class YouDaoYun:
 
 def main():
     """主程序入口"""
-    logger.info(f"==== 有道云笔记签到开始 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
+    logger.info(f"==== 有道云笔记签到开始 - {now_beijing().strftime('%Y-%m-%d %H:%M:%S')} ====")
 
     # 获取Cookie配置
     if not YOUDAO_COOKIE:
         error_msg = "未找到YOUDAO_COOKIE环境变量，请查看 README.md 配置说明"
         logger.error(error_msg)
-        safe_send_notify("有道云笔记签到失败", error_msg)
+        safe_send_notify("[有道云笔记]签到失败", error_msg)
         return
 
     # 支持多账号（用换行分隔）
@@ -378,7 +396,7 @@ def main():
         except Exception as e:
             error_msg = f"账号{index + 1}: 执行异常 - {str(e)}"
             logger.error(error_msg)
-            safe_send_notify(f"有道云笔记账号{index + 1}签到失败", error_msg)
+            safe_send_notify(f"[有道云笔记]账号{index + 1}签到失败", error_msg)
 
     # 发送汇总通知（统一格式）
     if total_count > 1:
@@ -389,11 +407,11 @@ def main():
 ✅ 成功：{success_count}个
 ❌ 失败：{total_count - success_count}个
 📈 成功率：{success_count/total_count*100:.1f}%
-⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+⏰ 完成时间：{now_beijing().strftime('%Y-%m-%d %H:%M:%S')}"""
 
         safe_send_notify("[有道云笔记]签到汇总", summary_msg)
 
-    logger.info(f"\n==== 有道云笔记签到完成 - 成功{success_count}/{total_count} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
+    logger.info(f"\n==== 有道云笔记签到完成 - 成功{success_count}/{total_count} - {now_beijing().strftime('%Y-%m-%d %H:%M:%S')} ====")
 
 def handler(event, context):
     """云函数入口"""

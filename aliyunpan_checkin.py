@@ -22,6 +22,13 @@ import subprocess
 import sqlite3
 from datetime import datetime, timedelta
 
+# 时区支持
+try:
+    from zoneinfo import ZoneInfo
+    BEIJING_TZ = ZoneInfo("Asia/Shanghai")
+except ImportError:
+    BEIJING_TZ = None
+
 urllib3.disable_warnings()
 
 # ---------------- 日志类 ----------------
@@ -30,7 +37,10 @@ class Logger:
         self.debug_mode = os.getenv("DEBUG_MODE", "false").lower() == "true"
 
     def log(self, level, message):
-        timestamp = datetime.now().strftime("%H:%M:%S")
+        if BEIJING_TZ:
+            timestamp = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         formatted_msg = f"[{timestamp}] [{level}] {message}"
         print(formatted_msg)
 
@@ -48,6 +58,14 @@ class Logger:
             self.log("DEBUG", message)
 
 logger = Logger()
+
+# ---------------- 时区辅助函数 ----------------
+def now_beijing():
+    """获取北京时间"""
+    if BEIJING_TZ:
+        return datetime.now(BEIJING_TZ)
+    else:
+        return datetime.now()
 
 # ---------------- 通知模块动态加载 ----------------
 hadsend = False
@@ -114,7 +132,7 @@ def update_qinglong_env_database(var_name, new_value, old_value=None):
             # 更新现有环境变量（兼容不同版本的字段）
             logger.info(f"更新现有环境变量: {var_name}")
             if 'updated_at' in columns:
-                current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                current_time = now_beijing().strftime('%Y-%m-%d %H:%M:%S')
                 cursor.execute("UPDATE envs SET value = ?, updated_at = ? WHERE name = ?",
                              (new_value, current_time, var_name))
             else:
@@ -123,7 +141,7 @@ def update_qinglong_env_database(var_name, new_value, old_value=None):
         else:
             # 创建新环境变量
             logger.info(f"创建新环境变量: {var_name}")
-            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            current_time = now_beijing().strftime('%Y-%m-%d %H:%M:%S')
 
             if 'updated_at' in columns and 'created_at' in columns:
                 cursor.execute("""
@@ -741,14 +759,14 @@ class AliYun:
             if show_token_in_notification:
                 final_msg += f"\n💡 新token：{self.new_refresh_token[:10]}...{self.new_refresh_token[-10:]}"
 
-        final_msg += f"\n⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        final_msg += f"\n⏰ 时间：{now_beijing().strftime('%Y-%m-%d %H:%M:%S')}"
 
         logger.info(f"{'签到完成' if is_success else '签到失败'}")
         return final_msg, is_success
 
 def main():
     """主程序入口"""
-    logger.info(f"==== 阿里云盘签到开始 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
+    logger.info(f"==== 阿里云盘签到开始 - {now_beijing().strftime('%Y-%m-%d %H:%M:%S')} ====")
 
     # 显示配置状态
     logger.info(f"自动更新Token: {'已启用' if auto_update_token else '已禁用'}")
@@ -760,7 +778,7 @@ def main():
     if not aliyun_tokens:
         error_msg = "❌ 未找到ALIYUN_REFRESH_TOKEN环境变量，请查看 README.md 配置说明"
         logger.error(error_msg)
-        safe_send_notify("阿里云盘签到失败", error_msg)
+        safe_send_notify("[阿里云盘]签到失败", error_msg)
         return
 
     # 支持多账号（用换行或&分隔）
@@ -799,7 +817,7 @@ def main():
             error_msg = f"账号{index + 1}: 执行异常 - {str(e)}"
             logger.error(error_msg)
 
-            title = f"阿里云盘账号{index + 1}签到失败"
+            title = f"[阿里云盘]账号{index + 1}签到失败"
             safe_send_notify(title, error_msg)
 
     # 发送汇总通知（统一格式）
@@ -810,11 +828,11 @@ def main():
 ✅ 成功：{success_count}个
 ❌ 失败：{total_count - success_count}个
 📈 成功率：{success_count/total_count*100:.1f}%
-⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+⏰ 完成时间：{now_beijing().strftime('%Y-%m-%d %H:%M:%S')}"""
 
         safe_send_notify("[阿里云盘]签到汇总", summary_msg)
 
-    logger.info(f"\n==== 阿里云盘签到完成 - 成功{success_count}/{total_count} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
+    logger.info(f"\n==== 阿里云盘签到完成 - 成功{success_count}/{total_count} - {now_beijing().strftime('%Y-%m-%d %H:%M:%S')} ====")
 
 if __name__ == "__main__":
     main()

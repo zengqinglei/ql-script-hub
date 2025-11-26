@@ -20,6 +20,14 @@ import re
 import time
 from datetime import datetime, timedelta
 from typing import Optional, Union
+
+# 时区支持
+try:
+    from zoneinfo import ZoneInfo
+    BEIJING_TZ = ZoneInfo("Asia/Shanghai")
+except ImportError:
+    BEIJING_TZ = None
+
 import requests
 
 # ---------------- Logger类定义 ----------------
@@ -28,7 +36,10 @@ class Logger:
         self.debug_mode = os.getenv("DEBUG_MODE", "false").lower() == "true"
 
     def log(self, level, message):
-        timestamp = datetime.now().strftime("%H:%M:%S")
+        if BEIJING_TZ:
+            timestamp = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         formatted_msg = f"[{timestamp}] [{level}] {message}"
         print(formatted_msg)
 
@@ -46,6 +57,14 @@ class Logger:
             self.log("DEBUG", message)
 
 logger = Logger()
+
+# ---------------- 时区辅助函数 ----------------
+def now_beijing():
+    """获取北京时间"""
+    if BEIJING_TZ:
+        return datetime.now(BEIJING_TZ)
+    else:
+        return datetime.now()
 
 # ---------------- 统一通知模块加载（和其他脚本一样）----------------
 hadsend = False
@@ -310,7 +329,7 @@ class Tieba:
     def main(self) -> tuple[str, bool]:  # 修改返回类型，增加成功状态
         try:
             logger.info(f"\n==== 账号{self.index} 开始签到 ====")
-            logger.info(f"开始时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            logger.info(f"开始时间: {now_beijing().strftime('%Y-%m-%d %H:%M:%S')}")
 
             # 验证登录状态
             tbs, user_name = self.get_user_info()
@@ -352,7 +371,7 @@ class Tieba:
 ❌ 签到失败：{stats["error"]}
 📈 签到效率：{efficiency} ({((total_actions/stats['total'])*100 if stats['total'] > 0 else 0):.1f}%)
 ⏱️ 用时：{duration}秒
-⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+⏰ 时间：{now_beijing().strftime('%Y-%m-%d %H:%M:%S')}"""
 
             logger.info(f"\n🎉 === 最终签到结果 ===")
             logger.info(result_msg)
@@ -367,7 +386,7 @@ class Tieba:
 
 def main():
     """主程序入口"""
-    logger.info(f"==== 百度贴吧签到开始 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
+    logger.info(f"==== 百度贴吧签到开始 - {now_beijing().strftime('%Y-%m-%d %H:%M:%S')} ====")
 
     # 获取Cookie配置
     tieba_cookie = os.getenv("TIEBA_COOKIE", "")
@@ -419,12 +438,12 @@ def main():
 ✅ 成功：{success_accounts}个
 ❌ 失败：{len(cookies) - success_accounts}个
 📈 成功率：{success_accounts/len(cookies)*100:.1f}%
-⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+⏰ 完成时间：{now_beijing().strftime('%Y-%m-%d %H:%M:%S')}"""
         safe_send_notify('[百度贴吧]签到汇总', summary_msg)
         logger.info(f"\n📊 === 汇总统计 ===")
         logger.info(summary_msg)
 
-    logger.info(f"\n==== 百度贴吧签到完成 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
+    logger.info(f"\n==== 百度贴吧签到完成 - {now_beijing().strftime('%Y-%m-%d %H:%M:%S')} ====")
 
 if __name__ == "__main__":
     main()

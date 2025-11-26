@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 cron: 0 21 * * *
-new Env('ikuuu签到')
+new Env('iKuuu签到')
 
 原始脚本来源: https://github.com/bighammer-link/jichang_dailycheckin
 本脚本基于原作者的代码进行了适配和优化，以符合本脚本库的统一标准
@@ -24,13 +24,23 @@ import random
 import time
 from datetime import datetime
 
+# 时区支持
+try:
+    from zoneinfo import ZoneInfo
+    BEIJING_TZ = ZoneInfo("Asia/Shanghai")
+except ImportError:
+    BEIJING_TZ = None
+
 # ---------------- 日志类 ----------------
 class Logger:
     def __init__(self):
         self.debug_mode = os.getenv("DEBUG_MODE", "false").lower() == "true"
 
     def log(self, level, message):
-        timestamp = datetime.now().strftime("%H:%M:%S")
+        if BEIJING_TZ:
+            timestamp = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         formatted_msg = f"[{timestamp}] [{level}] {message}"
         print(formatted_msg)
 
@@ -48,6 +58,14 @@ class Logger:
             self.log("DEBUG", message)
 
 logger = Logger()
+
+# ---------------- 时区辅助函数 ----------------
+def now_beijing():
+    """获取北京时间"""
+    if BEIJING_TZ:
+        return datetime.now(BEIJING_TZ)
+    else:
+        return datetime.now()
 
 # ---------------- 统一通知模块加载 ----------------
 hadsend = False
@@ -90,7 +108,7 @@ def safe_send_notify(title, content):
         logger.info(f"通知: {title}")
 
 class IkuuuSigner:
-    name = "ikuuu"
+    name = "iKuuu"
 
     def __init__(self, email: str, passwd: str, index: int = 1):
         self.email = email
@@ -285,7 +303,7 @@ class IkuuuSigner:
 👤 账号{self.index}：
 📱 用户：{self.email}
 📝 签到：{checkin_msg}
-⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+⏰ 时间：{now_beijing().strftime('%Y-%m-%d %H:%M:%S')}"""
 
         if checkin_success:
             logger.info("任务完成")
@@ -296,7 +314,7 @@ class IkuuuSigner:
 
 def main():
     """主程序入口"""
-    logger.info(f"==== ikuuu签到开始 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
+    logger.info(f"==== ikuuu签到开始 - {now_beijing().strftime('%Y-%m-%d %H:%M:%S')} ====")
     logger.info(f"当前域名: {BASE_URL}")
 
     # 获取账号配置
@@ -310,13 +328,13 @@ def main():
     if not emails or not passwords:
         error_msg = "未找到IKUUU_EMAIL或IKUUU_PASSWD环境变量，请查看 README.md 配置说明"
         logger.error(error_msg)
-        safe_send_notify("ikuuu签到失败", error_msg)
+        safe_send_notify("[iKuuu]签到失败", error_msg)
         return
 
     if len(emails) != len(passwords):
         error_msg = f"邮箱和密码数量不匹配（邮箱:{len(emails)}，密码:{len(passwords)}），请查看 README.md 配置说明"
         logger.error(error_msg)
-        safe_send_notify("ikuuu签到失败", error_msg)
+        safe_send_notify("[iKuuu]签到失败", error_msg)
         return
 
     logger.info(f"共发现 {len(emails)} 个账号")
@@ -341,13 +359,13 @@ def main():
 
             # 发送单个账号通知（统一标题格式）
             status = "成功" if is_success else "失败"
-            title = f"[ikuuu]签到{status}"
+            title = f"[iKuuu]签到{status}"
             safe_send_notify(title, result_msg)
 
         except Exception as e:
             error_msg = f"账号{index + 1}({email}): 执行异常 - {str(e)}"
             logger.error(error_msg)
-            safe_send_notify(f"ikuuu账号{index + 1}签到失败", error_msg)
+            safe_send_notify(f"[iKuuu]账号{index + 1}签到失败", error_msg)
 
     # 发送汇总通知（统一格式）
     if total_count > 1:
@@ -357,11 +375,11 @@ def main():
 ✅ 成功：{success_count}个
 ❌ 失败：{total_count - success_count}个
 📈 成功率：{success_count/total_count*100:.1f}%
-⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+⏰ 完成时间：{now_beijing().strftime('%Y-%m-%d %H:%M:%S')}"""
 
-        safe_send_notify("[ikuuu]签到汇总", summary_msg)
+        safe_send_notify("[iKuuu]签到汇总", summary_msg)
 
-    logger.info(f"\n==== ikuuu签到完成 - 成功{success_count}/{total_count} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
+    logger.info(f"\n==== ikuuu签到完成 - 成功{success_count}/{total_count} - {now_beijing().strftime('%Y-%m-%d %H:%M:%S')} ====")
 
 def handler(event, context):
     """云函数入口"""

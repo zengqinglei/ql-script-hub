@@ -17,13 +17,23 @@ import random
 import time
 from datetime import datetime
 
+# 时区支持
+try:
+    from zoneinfo import ZoneInfo
+    BEIJING_TZ = ZoneInfo("Asia/Shanghai")
+except ImportError:
+    BEIJING_TZ = None
+
 # ---------------- 日志类 ----------------
 class Logger:
     def __init__(self):
         self.debug_mode = os.getenv("DEBUG_MODE", "false").lower() == "true"
 
     def log(self, level, message):
-        timestamp = datetime.now().strftime("%H:%M:%S")
+        if BEIJING_TZ:
+            timestamp = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         formatted_msg = f"[{timestamp}] [{level}] {message}"
         print(formatted_msg)
 
@@ -41,6 +51,14 @@ class Logger:
             self.log("DEBUG", message)
 
 logger = Logger()
+
+# ---------------- 时区辅助函数 ----------------
+def now_beijing():
+    """获取北京时间"""
+    if BEIJING_TZ:
+        return datetime.now(BEIJING_TZ)
+    else:
+        return datetime.now()
 
 # ---------------- 统一通知模块加载 ----------------
 hadsend = False
@@ -372,14 +390,14 @@ class EnShanSigner:
 📊 积分：{self.point_before} → {self.point_after or self.point_before}
 🎯 贡献：{self.contribution} 分
 📝 签到：{signin_msg}{gain_info}
-⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+⏰ 时间：{now_beijing().strftime('%Y-%m-%d %H:%M:%S')}"""
 
         logger.info(f"{'任务完成' if signin_success else '任务失败'}")
         return final_msg, signin_success
 
 def main():
     """主程序入口"""
-    logger.info(f"==== 恩山论坛签到开始 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
+    logger.info(f"==== 恩山论坛签到开始 - {now_beijing().strftime('%Y-%m-%d %H:%M:%S')} ====")
 
     # 显示配置状态
     logger.info(f"隐私保护模式: {'已启用' if privacy_mode else '已禁用'}")
@@ -388,7 +406,7 @@ def main():
     if not enshan_cookie:
         error_msg = "❌ 未找到enshan_cookie环境变量，请查看 README.md 配置说明"
         logger.error(error_msg)
-        safe_send_notify("恩山论坛签到失败", error_msg)
+        safe_send_notify("[恩山论坛]签到失败", error_msg)
         return
 
     # 使用Cookie解析函数
@@ -397,7 +415,7 @@ def main():
     if not cookies:
         error_msg = "❌ Cookie解析失败，请检查格式是否正确，参考 README.md 配置说明"
         logger.error(error_msg)
-        safe_send_notify("恩山论坛签到失败", error_msg)
+        safe_send_notify("[恩山论坛]签到失败", error_msg)
         return
 
     logger.info(f"共发现 {len(cookies)} 个账号")
@@ -446,11 +464,11 @@ def main():
 ✅ 成功：{success_count}个
 ❌ 失败：{total_count - success_count}个
 📈 成功率：{success_count/total_count*100:.1f}%
-⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+⏰ 完成时间：{now_beijing().strftime('%Y-%m-%d %H:%M:%S')}"""
 
         safe_send_notify("[恩山论坛]签到汇总", summary_msg)
 
-    logger.info(f"\n==== 恩山论坛签到完成 - 成功{success_count}/{total_count} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
+    logger.info(f"\n==== 恩山论坛签到完成 - 成功{success_count}/{total_count} - {now_beijing().strftime('%Y-%m-%d %H:%M:%S')} ====")
 
 def handler(event, context):
     """云函数入口"""
