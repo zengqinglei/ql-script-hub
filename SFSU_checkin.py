@@ -58,8 +58,8 @@ class Logger:
         if BEIJING_TZ:
             timestamp = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
         else:
-            timestamp = now_beijing().strftime("%Y-%m-%d %H:%M:%S")
-        formatted_msg = f"[{timestamp}] [{level}] {message}"
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        formatted_msg = f"{timestamp} {level} {message}"
         print(formatted_msg)
 
     def info(self, message):
@@ -571,8 +571,8 @@ class RUN:
         ]
 
         if task_type in skip_task_types:
-            Log(f'⏭️ 会员日任务[{task_name}]-跳过执行（{task_type}）')
-            logger.info(f"会员日任务[{task_name}]跳过，原因：{task_type}")
+            Log(f'⏭️ 会员日任务-{task_name}-跳过执行（{task_type}）')
+            logger.info(f"会员日任务-{task_name}-跳过，原因：{task_type}")
             return
 
         # 智能获取任务代码
@@ -582,25 +582,25 @@ class RUN:
         elif 'taskType' in task:
             task_code = task['taskType']  # 某些任务使用taskType作为taskCode
         else:
-            Log(f'📝 任务[{task_name}]缺少必要字段，跳过执行')
+            Log(f'📝 任务-{task_name}-缺少必要字段，跳过执行')
             Log(f'📝 任务详情: {json.dumps(task, ensure_ascii=False, indent=2)}')
-            logger.warning(f"任务[{task_name}]缺少必要字段，跳过执行")
+            logger.warning(f"任务-{task_name}-缺少必要字段，跳过执行")
             return
 
         # 执行任务
-        logger.info(f"开始完成会员日任务[{task_name}]...")
+        logger.info(f"开始完成会员日任务-{task_name}...")
         payload = {'taskCode': task_code}
         url = 'https://mcs-mimp-web.sf-express.com/mcs-mimp/commonPost/~memberEs~taskRecord~finishTask'
         response = self.do_request(url, data=payload)
 
         if response.get('success'):
-            Log(f'📝 完成会员日任务[{task_name}]: 成功')
-            logger.info(f"完成会员日任务[{task_name}]成功")
+            Log(f'📝 完成会员日任务-{task_name}: 成功')
+            logger.info(f"完成会员日任务-{task_name}-成功")
             self.member_day_fetch_mix_task_reward(task)
         else:
             error_message = response.get('errorMessage', '无返回')
-            Log(f'📝 完成会员日任务[{task_name}]: {error_message}')
-            logger.error(f"完成会员日任务[{task_name}]失败，原因：{error_message}")
+            Log(f'📝 完成会员日任务-{task_name}: {error_message}')
+            logger.error(f"完成会员日任务-{task_name}-失败，原因：{error_message}")
             if '没有资格参与活动' in error_message:
                 self.member_day_black = True
                 Log('📝 会员日任务风控')
@@ -609,18 +609,18 @@ class RUN:
     def member_day_fetch_mix_task_reward(self, task):
         """领取会员日任务奖励"""
         task_name = task.get("taskName", "未知任务")
-        logger.info(f"开始领取会员日任务奖励[{task_name}]...")
+        logger.info(f"开始领取会员日任务奖励-{task_name}...")
         payload = {'taskType': task['taskType'], 'activityCode': 'MEMBER_DAY', 'channelType': 'MINI_PROGRAM'}
         url = 'https://mcs-mimp-web.sf-express.com/mcs-mimp/commonPost/~memberNonactivity~activityTaskService~fetchMixTaskReward'
         response = self.do_request(url, data=payload)
 
         if response.get('success'):
-            Log(f'🎁 领取会员日任务[{task_name}]: 成功')
-            logger.info(f"领取会员日任务[{task_name}]成功")
+            Log(f'🎁 领取会员日任务-{task_name}: 成功')
+            logger.info(f"领取会员日任务-{task_name}-成功")
         else:
             error_message = response.get('errorMessage', '失败')
-            Log(f'🎁 领取会员日任务[{task_name}]: {error_message}')
-            logger.error(f"领取会员日任务[{task_name}]失败，原因：{error_message}")
+            Log(f'🎁 领取会员日任务-{task_name}: {error_message}')
+            logger.error(f"领取会员日任务-{task_name}-失败，原因：{error_message}")
 
     def member_day_receive_red_packet(self, hour):
         """领取会员日红包"""
@@ -649,12 +649,12 @@ class RUN:
             Log(f"📝 会员日合成列表: {', '.join(packet_summary) or '无红包'}")
             logger.info(f"查询会员日红包状态成功，结果：{', '.join(packet_summary) or '无红包'}")
             if self.member_day_red_packet_map.get(self.max_level):
-                Log(f"🎁 会员日已拥有[{self.max_level}级]红包X{self.member_day_red_packet_map[self.max_level]}")
+                Log(f"🎁 会员日已拥有-{self.max_level}级-红包X{self.member_day_red_packet_map[self.max_level]}")
                 self.member_day_red_packet_draw(self.max_level)
             else:
                 remaining_needed = sum(1 << (int(level) - 1) for level, count in self.member_day_red_packet_map.items() if count > 0)
                 remaining = self.packet_threshold - remaining_needed
-                Log(f"📝 会员日距离[{self.max_level}级]红包还差: [1级]红包X{remaining}")
+                Log(f"📝 会员日距离-{self.max_level}级-红包还差: 1级红包X{remaining}")
         else:
             error_message = response.get('errorMessage', '无返回')
             Log(f'📝 查询会员日合成失败: {error_message}')
@@ -666,32 +666,32 @@ class RUN:
 
     def member_day_red_packet_merge(self, level):
         """合成会员日红包"""
-        logger.info(f"开始合成会员日红包[{level}级]...")
+        logger.info(f"开始合成会员日红包-{level}级...")
         payload = {'level': level, 'num': 2}
         url = 'https://mcs-mimp-web.sf-express.com/mcs-mimp/commonPost/~memberNonactivity~memberDayPacketService~redPacketMerge'
         response = self.do_request(url, data=payload)
         if response.get('success'):
-            Log(f'🎁 会员日合成: [{level}级]红包X2 -> [{level + 1}级]红包')
-            logger.info(f"合成会员日红包成功，结果：[{level}级]红包X2 -> [{level + 1}级]红包")
+            Log(f'🎁 会员日合成: {level}级红包X2 -> {level + 1}级红包')
+            logger.info(f"合成会员日红包成功，结果：{level}级红包X2 -> {level + 1}级红包")
             self.member_day_red_packet_map[level] = self.member_day_red_packet_map.get(level, 0) - 2
             self.member_day_red_packet_map[level + 1] = self.member_day_red_packet_map.get(level + 1, 0) + 1
         else:
-            Log(f'📝 会员日合成[{level}级]红包失败: {response.get("errorMessage", "无返回")}')
-            logger.error(f"合成会员日红包[{level}级]失败，原因：{response.get('errorMessage', '无返回')}")
+            Log(f'📝 会员日合成-{level}级-红包失败: {response.get("errorMessage", "无返回")}')
+            logger.error(f"合成会员日红包-{level}级-失败，原因：{response.get('errorMessage', '无返回')}")
 
     def member_day_red_packet_draw(self, level):
         """提取会员日红包"""
-        logger.info(f"开始提取会员日红包[{level}级]...")
+        logger.info(f"开始提取会员日红包-{level}级...")
         payload = {'level': str(level)}
         url = 'https://mcs-mimp-web.sf-express.com/mcs-mimp/commonPost/~memberNonactivity~memberDayPacketService~redPacketDraw'
         response = self.do_request(url, data=payload)
         if response.get('success'):
             coupon_names = [item['couponName'] for item in response.get('obj', [])] or ['空气']
-            Log(f"🎁 会员日提取[{level}级]红包: {', '.join(coupon_names)}")
-            logger.info(f"提取会员日红包[{level}级]成功，结果：{', '.join(coupon_names)}")
+            Log(f"🎁 会员日提取-{level}级-红包: {', '.join(coupon_names)}")
+            logger.info(f"提取会员日红包-{level}级-成功，结果：{', '.join(coupon_names)}")
         else:
-            Log(f"📝 会员日提取[{level}级]红包失败: {response.get('errorMessage', '无返回')}")
-            logger.error(f"提取会员日红包[{level}级]失败，原因：{response.get('errorMessage', '无返回')}")
+            Log(f"📝 会员日提取-{level}级-红包失败: {response.get('errorMessage', '无返回')}")
+            logger.error(f"提取会员日红包-{level}级-失败，原因：{response.get('errorMessage', '无返回')}")
 
     def main(self):
         """主执行逻辑"""

@@ -38,7 +38,7 @@ class Logger:
 
     def log(self, level, message):
         timestamp = datetime.now().strftime("%H:%M:%S")
-        formatted_msg = f"[{timestamp}] [{level}] {message}"
+        formatted_msg = f"{timestamp} {level} {message}"
         print(formatted_msg)
 
     def info(self, message):

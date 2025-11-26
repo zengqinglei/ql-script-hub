@@ -44,7 +44,7 @@ class Logger:
             timestamp = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
         else:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        formatted_msg = f"[{timestamp}] [{level}] {message}"
+        formatted_msg = f"{timestamp} {level} {message}"
         print(formatted_msg)
 
     def info(self, message):
@@ -137,7 +137,7 @@ LINUXDO_BUTTON_SELECTORS = [
 def safe_send_notify(title: str, content: str) -> bool:
     """安全的通知发送"""
     if not hadsend:
-        logger.info(f"[通知] {title}")
+        logger.info(f"通知: {title}")
         logger.info(f"   {content}")
         return False
 

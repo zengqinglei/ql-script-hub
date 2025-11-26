@@ -33,8 +33,8 @@ class Logger:
         if BEIJING_TZ:
             timestamp = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
         else:
-            timestamp = now_beijing().strftime("%Y-%m-%d %H:%M:%S")
-        formatted_msg = f"[{timestamp}] [{level}] {message}"
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        formatted_msg = f"{timestamp} {level} {message}"
         print(formatted_msg)
 
     def info(self, message):
@@ -136,7 +136,7 @@ class Quark:
                 # 记录详细错误信息
                 error_msg = response_data.get("message", "未知错误")
                 error_code = response_data.get("code", "")
-                logger.error(f"API返回错误: [{error_code}] {error_msg}")
+                logger.error(f"API返回错误: 错误码-{error_code}-{error_msg}")
                 return False
         except Exception as e:
             logger.error(f"获取签到信息异常: {e}")
