@@ -18,30 +18,74 @@ import random
 import time
 from datetime import datetime
 
+# 时区支持
+try:
+    from zoneinfo import ZoneInfo
+    BEIJING_TZ = ZoneInfo("Asia/Shanghai")
+except ImportError:
+    BEIJING_TZ = None
+
+# ---------------- 日志类 ----------------
+class Logger:
+    def __init__(self):
+        self.debug_mode = os.getenv("DEBUG_MODE", "false").lower() == "true"
+
+    def log(self, level, message):
+        if BEIJING_TZ:
+            timestamp = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        formatted_msg = f"{timestamp} {level} {message}"
+        print(formatted_msg)
+
+    def info(self, message):
+        self.log("INFO", message)
+
+    def warning(self, message):
+        self.log("WARNING", message)
+
+    def error(self, message):
+        self.log("ERROR", message)
+
+    def debug(self, message):
+        if self.debug_mode:
+            self.log("DEBUG", message)
+
+logger = Logger()
+
+# ---------------- 时区辅助函数 ----------------
+def now_beijing():
+    """获取北京时间"""
+    if BEIJING_TZ:
+        return datetime.now(BEIJING_TZ)
+    else:
+        return datetime.now()
+
 # ---------------- 统一通知模块加载 ----------------
 hadsend = False
 send = None
 try:
     from notify import send
     hadsend = True
-    print("✅ 已加载notify.py通知模块")
+    logger.info("已加载notify.py通知模块")
 except ImportError:
-    print("⚠️  未加载通知模块，跳过通知功能")
+    logger.info("未加载通知模块，跳过通知功能")
 
-# 配置项
+# ---------------- 配置项 ----------------
 YOUDAO_DOMAIN = (os.getenv("YOUDAO_DOMAIN") or "https://note.youdao.com").rstrip("/")
 YOUDAO_COOKIE = os.environ.get('YOUDAO_COOKIE', '')
 
-def notify_user(title, content):
+# ---------------- 统一通知函数 ----------------
+def safe_send_notify(title, content):
     """统一通知函数"""
     if hadsend:
         try:
             send(title, content)
-            print(f"✅ 通知发送完成: {title}")
+            logger.info(f"通知推送成功: {title}")
         except Exception as e:
-            print(f"❌ 通知发送失败: {e}")
+            logger.error(f"通知推送失败: {e}")
     else:
-        print(f"📢 {title}\n📄 {content}")
+        logger.info(f"通知: {title}")
 
 class YouDaoYun:
     name = "有道云笔记"
@@ -64,6 +108,7 @@ class YouDaoYun:
 
     def parse_cookie(self):
         """解析cookie字符串为字典"""
+        logger.info("开始解析Cookie...")
         try:
             for item in self.cookie.split("; "):
                 if "=" in item:
@@ -77,38 +122,42 @@ class YouDaoYun:
                 if len(parts) >= 2:
                     self.uid = parts[-2]
 
-            print(f"👤 用户ID: {self.uid}")
+            logger.info(f"Cookie解析成功，用户ID: {self.uid}")
             return True
         except Exception as e:
-            print(f"❌ Cookie解析失败: {e}")
+            logger.error(f"Cookie解析失败，原因: {e}")
             return False
 
     def refresh_cookies(self):
         """刷新cookies"""
+        logger.info("开始刷新Cookies...")
         try:
-            print("🔄 正在刷新cookies...")
+            url = f"{YOUDAO_DOMAIN}/login/acc/pe/getsess?product=YNOTE"
             response = requests.get(
-                f"{YOUDAO_DOMAIN}/login/acc/pe/getsess?product=YNOTE",
+                url,
                 cookies=self.cookies_dict,
                 timeout=15
             )
 
+            logger.debug(f"API 请求：GET {url} {response.status_code}")
+            logger.debug(f"响应：{response.text[:300]}")
+
             if response.status_code == 200:
                 # 更新cookies
                 self.cookies_dict.update(dict(response.cookies))
-                print("✅ Cookies刷新成功")
+                logger.info("Cookies刷新成功")
                 return True
             else:
-                print(f"⚠️ Cookies刷新失败，状态码: {response.status_code}")
+                logger.warning(f"Cookies刷新失败，状态码: {response.status_code}")
                 return False
         except Exception as e:
-            print(f"❌ Cookies刷新异常: {e}")
+            logger.error(f"Cookies刷新异常: {e}")
             return False
 
     def get_user_space_info(self):
         """获取用户存储空间信息"""
+        logger.info("开始获取存储空间信息...")
         try:
-            print("📊 正在获取存储空间信息...")
             url = f"{YOUDAO_DOMAIN}/yws/mapi/payment?method=status&pversion=v2"
 
             cstk = self.cookies_dict.get('YNOTE_CSTK', '')
@@ -126,6 +175,9 @@ class YouDaoYun:
                 timeout=15
             )
 
+            logger.debug(f"API 请求：POST {url} {response.status_code}")
+            logger.debug(f"响应：{response.text[:300]}")
+
             if response.status_code == 200:
                 result = response.json()
 
@@ -142,100 +194,105 @@ class YouDaoYun:
                         "free_formatted": self.format_size(total_size - used_size)
                     }
 
-                    print(f"✅ 存储空间信息获取成功")
-                    print(f"   总容量: {space_info['total_formatted']}")
-                    print(f"   已使用: {space_info['used_formatted']}")
-                    print(f"   剩余: {space_info['free_formatted']}")
-
+                    logger.info(f"存储空间信息获取成功 - 总容量: {space_info['total_formatted']}, 已使用: {space_info['used_formatted']}, 剩余: {space_info['free_formatted']}")
                     return space_info
                 else:
-                    print(f"⚠️ 响应中未找到空间信息")
+                    logger.warning("响应中未找到空间信息")
                     return {}
             else:
-                print(f"⚠️ 获取存储空间信息失败，状态码: {response.status_code}")
+                logger.warning(f"获取存储空间信息失败，状态码: {response.status_code}")
                 return {}
         except Exception as e:
-            print(f"❌ 获取存储空间信息异常: {e}")
+            logger.error(f"获取存储空间信息异常: {e}")
             return {}
 
     def sync_promotion(self):
         """同步推广空间"""
+        logger.info("开始同步推广...")
         try:
-            print("📝 正在同步推广...")
             url = f"{YOUDAO_DOMAIN}/yws/api/daupromotion?method=sync"
             response = requests.post(url=url, cookies=self.cookies_dict, timeout=15)
+
+            logger.debug(f"API 请求：POST {url} {response.status_code}")
+            logger.debug(f"响应：{response.text[:300]}")
 
             if response.status_code == 200:
                 data = response.json()
                 if "error" not in response.text and "reward" in response.text:
                     sync_space = data.get("rewardSpace", 0) // 1048576  # 转换为MB
-                    print(f"✅ 同步推广成功，获得空间: {sync_space}M")
+                    logger.info(f"同步推广成功，获得空间: {sync_space}M")
                     return sync_space
                 else:
                     error_msg = data.get("error", "未知错误")
-                    print(f"⚠️ 同步推广失败: {error_msg}")
+                    logger.warning(f"同步推广失败: {error_msg}")
                     return 0
             else:
-                print(f"❌ 同步推广请求失败，状态码: {response.status_code}")
+                logger.error(f"同步推广请求失败，状态码: {response.status_code}")
                 return 0
         except Exception as e:
-            print(f"❌ 同步推广异常: {e}")
+            logger.error(f"同步推广异常: {e}")
             return 0
 
     def daily_checkin(self):
         """每日签到"""
+        logger.info("开始执行每日签到...")
         try:
-            print("📝 正在执行每日签到...")
             url = f"{YOUDAO_DOMAIN}/yws/mapi/user?method=checkin"
             response = requests.post(url=url, cookies=self.cookies_dict, timeout=15)
+
+            logger.debug(f"API 请求：POST {url} {response.status_code}")
+            logger.debug(f"响应：{response.text[:300]}")
 
             if response.status_code == 200:
                 data = response.json()
                 checkin_space = data.get("space", 0) // 1048576  # 转换为MB
-                print(f"✅ 每日签到成功，获得空间: {checkin_space}M")
+                logger.info(f"每日签到成功，获得空间: {checkin_space}M")
                 return checkin_space
             else:
-                print(f"❌ 每日签到失败，状态码: {response.status_code}")
+                logger.error(f"每日签到失败，状态码: {response.status_code}")
                 return 0
         except Exception as e:
-            print(f"❌ 每日签到异常: {e}")
+            logger.error(f"每日签到异常: {e}")
             return 0
 
     def watch_ads(self, count=3):
         """观看广告获取空间"""
+        logger.info(f"开始观看广告（共{count}次）...")
         total_ad_space = 0
         try:
-            print(f"📺 正在观看广告（共{count}次）...")
             url = f"{YOUDAO_DOMAIN}/yws/mapi/user?method=adRandomPrompt"
 
             for i in range(count):
                 response = requests.post(url=url, cookies=self.cookies_dict, timeout=15)
 
+                logger.debug(f"API 请求：POST {url} {response.status_code}")
+                logger.debug(f"响应：{response.text[:300]}")
+
                 if response.status_code == 200:
                     data = response.json()
                     ad_space = data.get("space", 0) // 1048576  # 转换为MB
                     total_ad_space += ad_space
-                    print(f"  第{i+1}次观看广告，获得空间: {ad_space}M")
+                    logger.info(f"第{i+1}次观看广告，获得空间: {ad_space}M")
 
                     # 随机延迟，模拟真实观看
                     if i < count - 1:
                         time.sleep(random.uniform(1, 3))
                 else:
-                    print(f"  第{i+1}次观看广告失败，状态码: {response.status_code}")
+                    logger.warning(f"第{i+1}次观看广告失败，状态码: {response.status_code}")
 
-            print(f"✅ 观看广告完成，总计获得: {total_ad_space}M")
+            logger.info(f"观看广告完成，总计获得: {total_ad_space}M")
             return total_ad_space
         except Exception as e:
-            print(f"❌ 观看广告异常: {e}")
+            logger.error(f"观看广告异常: {e}")
             return total_ad_space
 
     def main(self):
         """主执行函数"""
-        print(f"\n==== 有道云笔记账号{self.index} 开始签到 ====")
+        logger.info(f"\n==== 有道云笔记账号{self.index} 开始签到 ====")
 
         if not self.cookie.strip():
             error_msg = "Cookie为空，请检查配置"
-            print(f"❌ {error_msg}")
+            logger.error(error_msg)
             return error_msg, False
 
         # 1. 解析Cookie
@@ -285,21 +342,24 @@ class YouDaoYun:
             if ad_space > 0:
                 final_msg += f" 观看广告{ad_space}M"
 
-        final_msg += f"\n⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        final_msg += f"\n⏰ 时间：{now_beijing().strftime('%Y-%m-%d %H:%M:%S')}"
 
         is_success = total_space > 0
-        print(f"{'✅ 签到成功' if is_success else '⚠️  签到失败'}")
+        if is_success:
+            logger.info("签到成功")
+        else:
+            logger.warning("签到失败")
         return final_msg, is_success
 
 def main():
     """主程序入口"""
-    print(f"==== 有道云笔记签到开始 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
+    logger.info(f"==== 有道云笔记签到开始 - {now_beijing().strftime('%Y-%m-%d %H:%M:%S')} ====")
 
     # 获取Cookie配置
     if not YOUDAO_COOKIE:
-        error_msg = "❌ 未找到YOUDAO_COOKIE环境变量，请查看 README.md 配置说明"
-        print(error_msg)
-        notify_user("有道云笔记签到失败", error_msg)
+        error_msg = "未找到YOUDAO_COOKIE环境变量，请查看 README.md 配置说明"
+        logger.error(error_msg)
+        safe_send_notify("[有道云笔记]签到失败", error_msg)
         return
 
     # 支持多账号（用换行分隔）
@@ -308,7 +368,7 @@ def main():
     else:
         cookies = [YOUDAO_COOKIE.strip()]
 
-    print(f"📝 共发现 {len(cookies)} 个账号")
+    logger.info(f"共发现 {len(cookies)} 个账号")
 
     success_count = 0
     total_count = len(cookies)
@@ -318,7 +378,7 @@ def main():
             # 账号间随机等待
             if index > 0:
                 delay = random.uniform(5, 15)
-                print(f"⏱️  随机等待 {delay:.1f} 秒后处理下一个账号...")
+                logger.info(f"随机等待 {delay:.1f} 秒后处理下一个账号...")
                 time.sleep(delay)
 
             # 执行签到
@@ -331,12 +391,12 @@ def main():
             # 发送单个账号通知（统一标题格式）
             status = "成功" if is_success else "失败"
             title = f"[有道云笔记]签到{status}"
-            notify_user(title, result_msg)
+            safe_send_notify(title, result_msg)
 
         except Exception as e:
             error_msg = f"账号{index + 1}: 执行异常 - {str(e)}"
-            print(f"❌ {error_msg}")
-            notify_user(f"有道云笔记账号{index + 1}签到失败", error_msg)
+            logger.error(error_msg)
+            safe_send_notify(f"[有道云笔记]账号{index + 1}签到失败", error_msg)
 
     # 发送汇总通知（统一格式）
     if total_count > 1:
@@ -347,11 +407,11 @@ def main():
 ✅ 成功：{success_count}个
 ❌ 失败：{total_count - success_count}个
 📈 成功率：{success_count/total_count*100:.1f}%
-⏰ 完成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+⏰ 完成时间：{now_beijing().strftime('%Y-%m-%d %H:%M:%S')}"""
 
-        notify_user("[有道云笔记]签到汇总", summary_msg)
+        safe_send_notify("[有道云笔记]签到汇总", summary_msg)
 
-    print(f"\n==== 有道云笔记签到完成 - 成功{success_count}/{total_count} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ====")
+    logger.info(f"\n==== 有道云笔记签到完成 - 成功{success_count}/{total_count} - {now_beijing().strftime('%Y-%m-%d %H:%M:%S')} ====")
 
 def handler(event, context):
     """云函数入口"""
