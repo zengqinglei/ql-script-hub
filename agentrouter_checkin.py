@@ -360,70 +360,79 @@ class LinuxDoAuthenticator(BaseAuthenticator):
                         login_success = False
                         last_log_time = 0
                         second_click_done = False # 用于二次点击的标志
+                        last_cf_warning_time = 0  # 用于CF警告的时间控制
 
-                        while time.time() - start_time < 60:  # 从45秒增加到60秒
+                        # [修改] 超时时间从 60s -> 90s
+                        while time.time() - start_time < 90:
                             # 1. 检查是否成功导航
                             if "/login" not in popup_page.url:
                                 logger.info(f"{self.account_name}: 登录成功，已跳转: {popup_page.url}")
                                 login_success = True
                                 break
 
-                            # 2. 检查并处理Cloudflare Turnstile（增强版）
+                            # 2. 检查并处理Cloudflare Turnstile（增强版 - 混合策略）
                             try:
-                                # 检测方法1: 查找CF iframe
+                                # A. 主动寻找并点击 Cloudflare 元素 (主页面 & Shadow DOM)
+                                # 这是为了应对无头模式下 iframe 可能无法交互的情况
+                                cf_selectors = [
+                                    "#challenge-stage input[type='checkbox']",  # 常见复选框
+                                    "#challenge-stage button",                  # 挑战区域按钮
+                                    ".challenge-form button",                   # 表单按钮
+                                    "input[name='cf-turnstile-response']",      # Turnstile 响应区
+                                    "div.cf-turnstile",                         # Turnstile 容器
+                                    "iframe[src*='challenges.cloudflare.com']", # iframe 本身
+                                ]
+                                
+                                for selector in cf_selectors:
+                                    if await popup_page.locator(selector).is_visible(timeout=200):
+                                        # logger.debug(f"{self.account_name}: 发现潜在 Cloudflare 元素 ({selector})")
+                                        try:
+                                            # 尝试点击，忽略错误
+                                            await popup_page.locator(selector).click(force=True, timeout=1000)
+                                            # logger.info(f"{self.account_name}: 尝试点击 ({selector})")
+                                        except:
+                                            pass
+
+                                # B. 深入 iframe 处理 (原有逻辑增强)
                                 cf_iframe = popup_page.frame_locator('iframe[src*="challenges.cloudflare.com"]')
-
-                                # 多次尝试点击CF验证（无头模式需要更多尝试）
-                                for cf_attempt in range(5):  # 从1次增加到5次
+                                if await cf_iframe.locator('body').is_visible(timeout=500):
+                                     # 尝试点击 iframe 内部
                                     try:
-                                        if await cf_iframe.locator('body').is_visible(timeout=500):
-                                            logger.info(f"{self.account_name}: 检测到Cloudflare验证（尝试{cf_attempt+1}/5）...")
+                                        await cf_iframe.locator('body').click(timeout=1000, force=True)
+                                        await cf_iframe.locator('input[type="checkbox"]').click(timeout=1000, force=True)
+                                    except:
+                                        pass
 
-                                            # 先等待iframe完全加载
-                                            await popup_page.wait_for_timeout(1000 + random.randint(200, 500))
-
-                                            # 尝试多种点击策略
-                                            try:
-                                                # 策略1: 点击body
-                                                await cf_iframe.locator('body').click(timeout=3000, force=True)
-                                                logger.info(f"{self.account_name}: CF验证点击成功(body)")
-                                            except:
-                                                try:
-                                                    # 策略2: 查找checkbox
-                                                    await cf_iframe.locator('input[type="checkbox"]').click(timeout=2000)
-                                                    logger.info(f"{self.account_name}: CF验证点击成功(checkbox)")
-                                                except:
-                                                    # 策略3: 点击整个iframe区域
-                                                    await popup_page.locator('iframe[src*="challenges.cloudflare.com"]').click(force=True)
-                                                    logger.info(f"{self.account_name}: CF验证点击成功(iframe)")
-
-                                            # 等待验证完成
-                                            await popup_page.wait_for_timeout(2000 + random.randint(500, 1000))
-
-                                            # 检查是否还有CF iframe（如果消失说明验证通过）
-                                            try:
-                                                still_visible = await cf_iframe.locator('body').is_visible(timeout=500)
-                                                if not still_visible:
-                                                    logger.info(f"{self.account_name}: Cloudflare验证通过")
-                                                    break
-                                            except:
-                                                # iframe消失，验证通过
-                                                logger.info(f"{self.account_name}: Cloudflare验证通过(iframe已消失)")
-                                                break
-                                    except Exception:
-                                        # 没找到CF iframe，跳出循环
-                                        break
                             except Exception:
                                 pass
 
-                            # 2b. 检测方法2: 检查页面标题和内容（CF挑战页面）
+                            # 3. 页面状态检测 (混合策略核心)
                             try:
                                 page_title = await popup_page.title()
                                 page_content = await popup_page.content()
 
                                 if "Just a moment" in page_title or "cloudflare" in page_content.lower():
-                                    logger.info(f"{self.account_name}: 检测到Cloudflare挑战页面，等待自动完成...")
-                                    # CF挑战页面会自动完成，只需等待
+                                    # 检查是否是需要人工交互的验证码
+                                    has_captcha = "challenge-platform" in page_content or "cf-turnstile" in page_content
+
+                                    if has_captcha:
+                                        # [策略调整] 不直接放弃，而是记录警告并继续尝试点击
+                                        elapsed = int(time.time() - start_time)
+                                        if elapsed - last_cf_warning_time >= 10: # 距离上次警告>=10秒
+                                            last_cf_warning_time = elapsed
+                                            logger.warning(f"{self.account_name}: 检测到 Cloudflare 交互式验证 ({elapsed}s)，正在尝试自动通过...")
+
+                                        # 尝试盲点页面中心，有时能触发焦点
+                                        try:
+                                            await popup_page.mouse.click(x=300, y=300)
+                                        except:
+                                            pass
+                                    else:
+                                        # 纯 JS 挑战，等待即可
+                                        pass
+
+                                    # 无论是交互式还是纯JS挑战，都等待一会儿让页面反应
+                                    logger.info(f"{self.account_name}: Cloudflare 处理中... ({int(time.time() - start_time)}s)")
                                     await popup_page.wait_for_timeout(3000)
                                     continue
                             except:
@@ -496,7 +505,7 @@ class LinuxDoAuthenticator(BaseAuthenticator):
                             await popup_page.wait_for_timeout(1000)  # 轮询间隔
 
                         if not login_success:
-                            logger.warning(f"{self.account_name}: 登录超时（45秒），页面可能卡住。")
+                            logger.warning(f"{self.account_name}: 登录超时（90秒），页面可能卡住。")
                             return {"success": False, "error": "登录超时，未能跳转或完成验证"}
 
                         logger.info(f"{self.account_name}: Linux.do 登录流程完成")
