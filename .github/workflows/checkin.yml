@@ -119,7 +119,7 @@ jobs:
           IKUUU_PASSWD: ${{ secrets.IKUUU_PASSWD }}
 
           # Leaflow 配置
-          LEAFLOW_COOKIE: ${{ secrets.LEAFFLOW_COOKIE }}
+          LEAFLOW_COOKIE: ${{ secrets.LEAFLOW_COOKIE }}
 
           # 阿里云盘配置
           ALIYUN_REFRESH_TOKEN: ${{ secrets.ALIYUN_REFRESH_TOKEN }}
@@ -141,6 +141,32 @@ jobs:
 
           # 夸克网盘配置
           QUARK_COOKIE: ${{ secrets.QUARK_COOKIE }}
+
+          # 天翼云盘配置
+          TY_USERNAME: ${{ secrets.TY_USERNAME }}
+          TY_PASSWORD: ${{ secrets.TY_PASSWORD }}
+
+          # NodeSeek 配置
+          NODESEEK_COOKIE: ${{ secrets.NODESEEK_COOKIE }}
+          NS_RANDOM: ${{ secrets.NS_RANDOM }}
+
+          # DeepFlood 配置
+          DEEPFLOOD_COOKIE: ${{ secrets.DEEPFLOOD_COOKIE }}
+
+          # NGA论坛 配置
+          NGA_CREDENTIALS: ${{ secrets.NGA_CREDENTIALS }}
+
+          # 百度贴吧 配置
+          TIEBA_COOKIE: ${{ secrets.TIEBA_COOKIE }}
+
+          # 什么值得买 配置
+          SMZDM_COOKIE: ${{ secrets.SMZDM_COOKIE }}
+
+          # 顺丰速运 配置
+          SFSU_COOKIE: ${{ secrets.SFSU_COOKIE }}
+
+          # 恩山论坛 配置
+          ENSHAN_COOKIE: ${{ secrets.ENSHAN_COOKIE }}
         run: |
           chmod +x .github/workflows/run_checkin.sh
           .github/workflows/run_checkin.sh "${{ github.event.inputs.run_all }}" "${{ github.event.inputs.script_name }}"

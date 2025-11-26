@@ -81,7 +81,7 @@ run_script() {
 
   if [ "$SCRIPTS_INPUT" = "all" ] || [ "$SCRIPTS_INPUT" = "ALL" ]; then
     if ! check_script_env "$script_name" "${required_envs[@]}"; then
-      echo "⏭️  跳过 $script_name: 未配置环境变量"
+      echo "⚠️  跳过 $script_name: 未配置环境变量"
       return
     fi
   fi
