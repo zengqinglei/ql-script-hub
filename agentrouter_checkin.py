@@ -14,7 +14,7 @@ new Env('AgentRouter签到')
 
 AgentRouter 自动签到青龙脚本
 通过浏览器自动化登录完成签到(签到在登录时触发)
-仅支持 Linux.do OAuth 认证方式
+使用邮箱密码认证方式
 """
 
 import asyncio
@@ -123,13 +123,35 @@ KEY_COOKIE_NAMES = ["session", "sessionid", "token", "auth", "jwt"]
 # WAF Cookie名称
 WAF_COOKIE_NAMES = ["acw_tc", "cdn_sec_tc", "acw_sc__v2"]
 
-# Linux.do 登录按钮选择器
-LINUXDO_BUTTON_SELECTORS = [
-    'button:has-text("LinuxDO")',
-    'a:has-text("LinuxDO")',
-    'button:has-text("Linux.do")',
-    'a:has-text("Linux")',
-    'a[href*="linux.do"]',
+# 邮箱输入框选择器
+EMAIL_INPUT_SELECTORS = [
+    'input[type="email"]',
+    'input[name="email"]',
+    'input[placeholder*="邮箱"]',
+    'input[placeholder*="Email"]',
+    'input[id*="email"]',
+]
+
+# 密码输入框选择器
+PASSWORD_INPUT_SELECTORS = [
+    'input[type="password"]',
+    'input[name="password"]',
+]
+
+# 登录按钮选择器
+LOGIN_BUTTON_SELECTORS = [
+    'button[type="submit"]',
+    'button:has-text("登录")',
+    'button:has-text("Login")',
+    'input[type="submit"]',
+]
+
+# 弹窗关闭选择器
+POPUP_CLOSE_SELECTORS = [
+    '.semi-modal-close',
+    '[aria-label="Close"]',
+    'button:has-text("关闭")',
+    'button:has-text("我知道了")',
 ]
 
 
@@ -152,27 +174,13 @@ def safe_send_notify(title: str, content: str) -> bool:
 
 
 # ==================== 认证器类 ====================
-class BaseAuthenticator:
-    """认证器基类"""
+class EmailAuthenticator:
+    """邮箱密码认证"""
 
-    def __init__(self, account_name: str, auth_config: Dict):
+    def __init__(self, account_name: str, email: str, password: str):
         self.account_name = account_name
-        self.auth_config = auth_config
-
-    async def authenticate(self, page: Page, context: BrowserContext) -> Dict:
-        """
-        执行认证
-
-        Returns:
-            {
-                "success": bool,
-                "cookies": dict,
-                "user_id": str,
-                "username": str,
-                "error": str
-            }
-        """
-        raise NotImplementedError
+        self.email = email
+        self.password = password
 
     async def _extract_user_info(self, cookies: Dict[str, str]) -> Tuple[Optional[str], Optional[str]]:
         """从用户信息API提取用户ID和用户名"""
@@ -196,530 +204,189 @@ class BaseAuthenticator:
             logger.warning(f"{self.account_name}: 提取用户信息失败: {e}")
         return None, None
 
+    async def _close_popups(self, page: Page):
+        """关闭可能的弹窗"""
+        try:
+            await page.keyboard.press('Escape')
+            await page.wait_for_timeout(300)
+            for sel in POPUP_CLOSE_SELECTORS:
+                try:
+                    close_btn = await page.query_selector(sel)
+                    if close_btn:
+                        await close_btn.click()
+                        await page.wait_for_timeout(300)
+                        break
+                except:
+                    continue
+        except:
+            pass
 
-class LinuxDoAuthenticator(BaseAuthenticator):
-    """Linux.do OAuth 认证"""
+    async def _find_email_input(self, page: Page):
+        """查找邮箱输入框"""
+        logger.info(f"{self.account_name}: 查找邮箱输入框...")
+        for sel in EMAIL_INPUT_SELECTORS:
+            try:
+                email_input = await page.query_selector(sel)
+                if email_input:
+                    logger.info(f"{self.account_name}: 找到邮箱输入框: {sel}")
+                    return email_input
+            except:
+                continue
+
+        # 调试信息
+        try:
+            page_title = await page.title()
+            page_url = page.url
+            logger.error(f"{self.account_name}: 未找到邮箱输入框")
+            logger.info(f"   当前页面: {page_title}")
+            logger.info(f"   当前URL: {page_url}")
+
+            # 查找所有输入框
+            all_inputs = await page.query_selector_all('input')
+            logger.info(f"   页面共有 {len(all_inputs)} 个输入框")
+            for i, inp in enumerate(all_inputs[:5]):
+                try:
+                    inp_type = await inp.get_attribute('type')
+                    inp_name = await inp.get_attribute('name')
+                    inp_placeholder = await inp.get_attribute('placeholder')
+                    logger.info(f"     输入框{i+1}: type={inp_type}, name={inp_name}, placeholder={inp_placeholder}")
+                except:
+                    logger.info(f"     输入框{i+1}: 无法获取属性")
+
+        except Exception as e:
+            logger.info(f"   调试信息获取失败: {e}")
+
+        return None
+
+    async def _check_login_success(self, page: Page) -> Tuple[bool, Optional[str]]:
+        """检查登录是否成功"""
+        current_url = page.url
+        logger.info(f"{self.account_name}: 登录后URL: {current_url}")
+
+        # 方法1: 检查URL变化
+        if "login" not in current_url.lower():
+            logger.info(f"{self.account_name}: URL已变化，登录可能成功")
+            return True, None
+
+        logger.warning(f"{self.account_name}: 仍在登录页面，检查其他登录指标...")
+
+        # 方法2: 检查错误提示
+        try:
+            error_selectors = ['.error', '.alert-danger', '[class*="error"]', '.toast-error', '[role="alert"]']
+            for sel in error_selectors:
+                error_msg = await page.query_selector(sel)
+                if error_msg:
+                    error_text = await error_msg.inner_text()
+                    if error_text and error_text.strip():
+                        logger.error(f"{self.account_name}: 登录错误: {error_text}")
+                        return False, f"登录失败: {error_text}"
+        except:
+            pass
+
+        # 仍在登录页
+        if "login" in current_url.lower():
+            return False, "登录失败，仍在登录页面"
+
+        return True, None
 
     async def authenticate(self, page: Page, context: BrowserContext) -> Dict:
+        """使用邮箱密码登录"""
         try:
-            username = self.auth_config.get("username")
-            password = self.auth_config.get("password")
-
-            if not username or not password:
-                return {"success": False, "error": "未提供用户名或密码"}
-
-            logger.info(f"{self.account_name}: 使用 Linux.do 认证: {username}")
+            logger.info(f"{self.account_name}: 开始邮箱密码认证")
+            logger.info(f"{self.account_name}: 使用邮箱: {self.email}")
 
             # 步骤1: 访问登录页
             logger.info(f"{self.account_name}: 访问登录页...")
             await page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=PAGE_LOAD_TIMEOUT)
             logger.debug(f"API 请求：访问 {LOGIN_URL}")
-
-            # Docker环境需要更长等待时间让页面完全渲染
             await page.wait_for_timeout(2000)
 
-            # 关闭可能的弹窗
-            try:
-                await page.keyboard.press('Escape')
-                await page.wait_for_timeout(300)
-            except:
-                pass
+            # 步骤2: 关闭可能的弹窗
+            await self._close_popups(page)
 
-            # 步骤2: 查找并点击"使用LinuxDO继续"按钮
-            logger.info(f"{self.account_name}: 查找 LinuxDO 登录按钮...")
-
-            # 等待按钮出现（Docker环境可能较慢）
-            linux_button = None
-            for selector in LINUXDO_BUTTON_SELECTORS:
+            # 步骤3: 点击"使用邮箱或用户名登录"按钮
+            logger.info(f"{self.account_name}: 查找邮箱登录选项...")
+            email_login_button = None
+            for sel in [
+                'button:has-text("使用 邮箱或用户名 登录")',
+                'button:has-text("邮箱或用户名")',
+                'button:has-text("邮箱登录")',
+                'button:has-text("Email")',
+            ]:
                 try:
-                    # 等待按钮出现，最多15秒
-                    await page.wait_for_selector(selector, timeout=15000, state="visible")
-                    linux_button = await page.query_selector(selector)
-                    if linux_button:
-                        logger.info(f"{self.account_name}: 找到 LinuxDO 登录按钮: {selector}")
+                    email_login_button = await page.query_selector(sel)
+                    if email_login_button:
+                        logger.info(f"{self.account_name}: 找到邮箱登录按钮: {sel}")
+                        await email_login_button.click()
+                        await page.wait_for_timeout(1000)
                         break
                 except:
-                    # 这个选择器没找到，尝试下一个
                     continue
 
-            if not linux_button:
-                return {"success": False, "error": "未找到 LinuxDO 登录按钮"}
+            if not email_login_button:
+                logger.warning(f"{self.account_name}: 未找到邮箱登录按钮，继续尝试查找输入框...")
 
-            # 点击LinuxDO登录按钮（会打开popup窗口）
-            logger.info(f"{self.account_name}: 点击'使用LinuxDO继续'按钮...")
+            # 步骤4: 查找邮箱输入框
+            email_input = await self._find_email_input(page)
+            if not email_input:
+                return {"success": False, "error": "未找到邮箱输入框"}
 
-            # 关键：监听popup窗口
-            async with page.expect_popup() as popup_info:
-                await linux_button.click()
-
-            # 获取popup窗口
-            popup_page = await popup_info.value
-            logger.info(f"{self.account_name}: 检测到popup窗口: {popup_page.url}")
-            logger.debug(f"API 请求：访问 {popup_page.url}")
-            await popup_page.wait_for_timeout(2000)
-
-            # 步骤3: 等待popup页面完全加载并跳转
-            try:
-                # 低配Docker环境（CPU<1核）可能需要更长时间
-                await popup_page.wait_for_load_state("domcontentloaded", timeout=30000)
-                await popup_page.wait_for_timeout(5000)  # 额外等待，确保重定向完成
-            except:
-                logger.warning(f"{self.account_name}: Popup页面加载超时，继续执行...")
-
-            current_url = popup_page.url
-            logger.info(f"{self.account_name}: Popup加载后URL: {current_url}")
-
-            # 如果URL中包含 oauth2/authorize，说明已经在授权页面
-            if "/oauth2/authorize" in current_url or "/authorize" in current_url:
-                logger.info(f"{self.account_name}: 检测到OAuth授权页面")
-            elif "/login" in current_url:
-                # 等待可能的跳转到授权页面
-                logger.info(f"{self.account_name}: 当前在登录页，等待跳转...")
-                await popup_page.wait_for_timeout(3000)
-                current_url = popup_page.url
-                logger.info(f"{self.account_name}: 等待后URL: {current_url}")
-
-            # 步骤4: 如果跳转到Linux.do登录页，在popup中填写登录表单
-            if "linux.do" in current_url and "/login" in current_url:
-                logger.info(f"{self.account_name}: 检测到Linux.do登录页，填写登录表单...")
-
-                # 等待登录表单加载完成（低配Docker环境需要更长时间）
+            # 步骤5: 查找密码输入框
+            password_input = None
+            for sel in PASSWORD_INPUT_SELECTORS:
                 try:
-                    logger.info(f"{self.account_name}: 等待登录表单加载...")
-                    # CPU<1核的环境，表单渲染极慢，增加到30秒
-                    await popup_page.wait_for_selector('input[id="login-account-name"]', timeout=30000)
-                    await popup_page.wait_for_timeout(2000)  # 额外等待确保表单完全可交互
-                except Exception as e:
-                    logger.error(f"{self.account_name}: 等待登录表单超时: {e}")
-                    return {"success": False, "error": "Linux.do 登录表单加载超时"}
-
-                # 查找登录表单
-                username_input = await popup_page.query_selector('input[id="login-account-name"]')
-                password_input = await popup_page.query_selector('input[id="login-account-password"]')
-
-                if username_input and password_input:
-                    logger.info(f"{self.account_name}: 找到登录表单")
-
-                    # 极低配环境终极方案：直接用JS设置值，跳过所有交互等待
-                    try:
-                        logger.info(f"{self.account_name}: 使用JS直接填写表单（低配环境优化）...")
-
-                        # 直接通过JS设置值，绕过所有交互检查
-                        await popup_page.evaluate(f"""
-                            document.getElementById('login-account-name').value = '{username}';
-                            document.getElementById('login-account-password').value = '{password}';
-                        """)
-
-                        logger.info(f"{self.account_name}: 表单填写完成")
-                        await popup_page.wait_for_timeout(random.randint(500, 1000))
-
-                    except Exception as e:
-                        logger.warning(f"{self.account_name}: JS填写失败，尝试fill()方法: {e}")
-                        # 降级方案1：使用fill()
-                        try:
-                            await username_input.fill(username, timeout=45000)
-                            await popup_page.wait_for_timeout(random.randint(300, 600))
-                            await popup_page.wait_for_timeout(random.randint(500, 1000))
-                            await password_input.fill(password, timeout=45000)
-                            await popup_page.wait_for_timeout(random.randint(800, 1500))
-                        except Exception as e2:
-                            logger.warning(f"{self.account_name}: fill()失败，尝试强制点击: {e2}")
-                            # 降级方案2：强制点击
-                            try:
-                                await username_input.click(force=True, timeout=45000)
-                                await username_input.type(username, delay=100)
-                                await password_input.click(force=True, timeout=45000)
-                                await password_input.type(password, delay=100)
-                            except Exception as e3:
-                                logger.error(f"{self.account_name}: 所有填写方法都失败: {e3}")
-                                return {"success": False, "error": f"填写登录表单失败: {str(e3)}"}
-
-                    # 点击登录按钮
-                    login_button = await popup_page.query_selector('button[id="login-button"]')
-                    if login_button:
-                        logger.info(f"{self.account_name}: 点击登录按钮...")
-                        # 极低配环境：直接用JS触发点击，跳过交互等待
-                        try:
-                            await popup_page.evaluate('document.getElementById("login-button").click()')
-                            logger.info(f"{self.account_name}: 登录按钮点击完成（JS方式）")
-                        except Exception as e:
-                            logger.warning(f"{self.account_name}: JS点击失败，尝试常规点击: {e}")
-                            # 降级方案
-                            try:
-                                await login_button.click(timeout=45000)
-                            except Exception as e2:
-                                logger.warning(f"{self.account_name}: 常规点击失败，尝试强制点击: {e2}")
-                                await login_button.click(force=True, timeout=45000)
-
-                        # --- 开始重构的智能等待逻辑 ---
-                        logger.info(f"{self.account_name}: 已点击登录，等待页面响应...")
-                        await popup_page.wait_for_timeout(3000)  # 等待3秒，给CF脚本加载时间
-                        logger.info(f"{self.account_name}: 开始检查跳转或Cloudflare验证...")
-
-                        start_time = time.time()
-                        login_success = False
-                        last_log_time = 0
-                        second_click_done = False # 用于二次点击的标志
-                        last_cf_warning_time = 0  # 用于CF警告的时间控制
-
-                        # [修改] 超时时间从 60s -> 90s
-                        while time.time() - start_time < 90:
-                            # 1. 检查是否成功导航
-                            if "/login" not in popup_page.url:
-                                logger.info(f"{self.account_name}: 登录成功，已跳转: {popup_page.url}")
-                                login_success = True
-                                break
-
-                            # 2. 检查并处理Cloudflare Turnstile（增强版 - 混合策略）
-                            try:
-                                # A. 主动寻找并点击 Cloudflare 元素 (主页面 & Shadow DOM)
-                                # 这是为了应对无头模式下 iframe 可能无法交互的情况
-                                cf_selectors = [
-                                    "#challenge-stage input[type='checkbox']",  # 常见复选框
-                                    "#challenge-stage button",                  # 挑战区域按钮
-                                    ".challenge-form button",                   # 表单按钮
-                                    "input[name='cf-turnstile-response']",      # Turnstile 响应区
-                                    "div.cf-turnstile",                         # Turnstile 容器
-                                    "iframe[src*='challenges.cloudflare.com']", # iframe 本身
-                                ]
-                                
-                                for selector in cf_selectors:
-                                    if await popup_page.locator(selector).is_visible(timeout=200):
-                                        # logger.debug(f"{self.account_name}: 发现潜在 Cloudflare 元素 ({selector})")
-                                        try:
-                                            # 尝试点击，忽略错误
-                                            await popup_page.locator(selector).click(force=True, timeout=1000)
-                                            # logger.info(f"{self.account_name}: 尝试点击 ({selector})")
-                                        except:
-                                            pass
-
-                                # B. 深入 iframe 处理 (原有逻辑增强)
-                                cf_iframe = popup_page.frame_locator('iframe[src*="challenges.cloudflare.com"]')
-                                if await cf_iframe.locator('body').is_visible(timeout=500):
-                                     # 尝试点击 iframe 内部
-                                    try:
-                                        await cf_iframe.locator('body').click(timeout=1000, force=True)
-                                        await cf_iframe.locator('input[type="checkbox"]').click(timeout=1000, force=True)
-                                    except:
-                                        pass
-
-                            except Exception:
-                                pass
-
-                            # 3. 页面状态检测 (混合策略核心)
-                            try:
-                                page_title = await popup_page.title()
-                                page_content = await popup_page.content()
-
-                                if "Just a moment" in page_title or "cloudflare" in page_content.lower():
-                                    # 检查是否是需要人工交互的验证码
-                                    has_captcha = "challenge-platform" in page_content or "cf-turnstile" in page_content
-
-                                    if has_captcha:
-                                        # [策略调整] 不直接放弃，而是记录警告并继续尝试点击
-                                        elapsed = int(time.time() - start_time)
-                                        if elapsed - last_cf_warning_time >= 10: # 距离上次警告>=10秒
-                                            last_cf_warning_time = elapsed
-                                            logger.warning(f"{self.account_name}: 检测到 Cloudflare 交互式验证 ({elapsed}s)，正在尝试自动通过...")
-
-                                        # 尝试盲点页面中心，有时能触发焦点
-                                        try:
-                                            await popup_page.mouse.click(x=300, y=300)
-                                        except:
-                                            pass
-                                    else:
-                                        # 纯 JS 挑战，等待即可
-                                        pass
-
-                                    # 无论是交互式还是纯JS挑战，都等待一会儿让页面反应
-                                    logger.info(f"{self.account_name}: Cloudflare 处理中... ({int(time.time() - start_time)}s)")
-                                    await popup_page.wait_for_timeout(3000)
-                                    continue
-                            except:
-                                pass
-
-                            # 3. 增强的错误提示检查
-                            try:
-                                # a) 基于类的选择器
-                                error_el = await popup_page.query_selector('.alert-error, #modal-alert, .error, [role="alert"]')
-                                if error_el and await error_el.is_visible(timeout=500):
-                                    error_text = await error_el.inner_text()
-                                    if error_text and error_text.strip():
-                                        logger.error(f"{self.account_name}: 检测到登录错误 (by class): {error_text.strip()}")
-                                        return {"success": False, "error": f"登录失败: {error_text.strip()}"}
-
-                                # b) 基于文本的模式匹配
-                                error_patterns = ["密码不正确", "用户不存在", "凭据无效", "Invalid", "Incorrect", "failed"]
-                                for pattern in error_patterns:
-                                    error_locator = popup_page.locator(f'text=/{pattern}/i')
-                                    if await error_locator.count() > 0:
-                                        first_match = error_locator.first
-                                        if await first_match.is_visible(timeout=500):
-                                            error_text = await first_match.inner_text()
-                                            logger.error(f"{self.account_name}: 检测到文本错误 (by text): {error_text.strip()}")
-                                            return {"success": False, "error": f"登录失败: {error_text.strip()}"}
-                            except Exception:
-                                pass
-
-                            # 4. 定期打印等待状态 和 执行二次点击
-                            elapsed = int(time.time() - start_time)
-                            if elapsed > 3 and elapsed - last_log_time >= 5:
-                                last_log_time = elapsed
-                                try:
-                                    login_btn_check = await popup_page.query_selector('button.is-loading')
-                                    if login_btn_check:
-                                        logger.debug(f"   登录按钮仍在加载中... ({elapsed}s)")
-
-                                        # 检查按钮加载时是否有隐藏的CF验证正在进行
-                                        # 某些情况下，CF验证在后台运行，按钮会一直loading
-                                        # 我们需要给CF更多时间完成验证
-                                        if elapsed > 15 and elapsed % 10 == 5:
-                                            logger.debug(f"{self.account_name}: 按钮长时间加载，可能CF验证正在后台进行，继续等待...")
-                                            # 检查页面是否有JS错误
-                                            try:
-                                                js_check = await popup_page.evaluate("() => window.performance && window.performance.timing")
-                                                if js_check:
-                                                    logger.debug(f"   页面JS正常运行")
-                                            except:
-                                                pass
-                                    else:
-                                        # 二次点击逻辑
-                                        if not second_click_done:
-                                            logger.info(f"{self.account_name}: 登录按钮未加载，尝试二次点击...")
-                                            try:
-                                                login_button_again = await popup_page.query_selector('button[id="login-button"]')
-                                                if login_button_again and await login_button_again.is_enabled():
-                                                    await login_button_again.click()
-                                                    second_click_done = True
-                                                    logger.info(f"{self.account_name}: 第二次点击完成。")
-                                                    await popup_page.wait_for_timeout(2000) # 等待二次点击后的响应
-                                                else:
-                                                    logger.debug(f"   无法进行二次点击（按钮不存在或不可用）。")
-                                            except Exception as e:
-                                                logger.warning(f"{self.account_name}: 第二次点击失败: {e}")
-                                        else:
-                                            logger.debug(f"   等待跳转中... ({elapsed}s)")
-                                except Exception:
-                                    logger.debug(f"   等待页面响应... ({elapsed}s)")
-
-                            await popup_page.wait_for_timeout(1000)  # 轮询间隔
-
-                        if not login_success:
-                            logger.warning(f"{self.account_name}: 登录超时（90秒），页面可能卡住。")
-                            return {"success": False, "error": "登录超时，未能跳转或完成验证"}
-
-                        logger.info(f"{self.account_name}: Linux.do 登录流程完成")
-
-                        # 等待授权确认页面加载
-                        logger.info(f"{self.account_name}: 等待授权确认页面加载...")
-                        await popup_page.wait_for_timeout(2000)
-
-
-                    else:
-                        return {"success": False, "error": "未找到 Linux.do 登录按钮"}
-                else:
-                    return {"success": False, "error": "未找到 Linux.do 登录表单"}
-
-            # 步骤5: 等待跳转到OAuth授权确认页面
-            current_url = popup_page.url
-            logger.info(f"{self.account_name}: 步骤5 - 当前URL: {current_url}")
-
-            # 如果当前不是授权页面，等待跳转到授权页面
-            if "authorize" not in current_url and "/oauth2/" not in current_url:
-                logger.info(f"{self.account_name}: 等待跳转到OAuth授权页面...")
-
-                # 等待URL跳转到授权页面（最多15秒）
-                for i in range(15):
-                    await popup_page.wait_for_timeout(1000)
-                    current_url = popup_page.url
-
-                    if "authorize" in current_url or "/oauth2/" in current_url:
-                        logger.info(f"{self.account_name}: 已跳转到OAuth授权页面: {current_url}")
+                    password_input = await page.query_selector(sel)
+                    if password_input:
+                        logger.info(f"{self.account_name}: 找到密码输入框: {sel}")
                         break
-
-                    if (i + 1) % 5 == 0:
-                        logger.debug(f"   等待授权页面... ({i+1}s) - 当前: {current_url[:80]}...")
-                else:
-                    logger.warning(f"{self.account_name}: 未跳转到授权页面，当前URL: {current_url}")
-
-            # 步骤6: 处理OAuth授权确认页面（在popup中）
-            current_url = popup_page.url
-            logger.info(f"{self.account_name}: 准备处理授权页面: {current_url}")
-
-            if "linux.do" in current_url or "authorize" in current_url:
-                logger.info(f"{self.account_name}: 等待OAuth授权页面加载完成...")
-
-                # 等待页面完全加载
-                try:
-                    await popup_page.wait_for_load_state("networkidle", timeout=10000)
-                    await popup_page.wait_for_timeout(2000)
                 except:
-                    logger.warning(f"{self.account_name}: 页面加载超时，继续执行...")
+                    continue
 
-                # 先处理OAuth授权页面的Cloudflare验证（可能会出现 - 增强版）
-                logger.info(f"{self.account_name}: 检查OAuth授权页面是否需要Cloudflare验证...")
-                try:
-                    await popup_page.wait_for_timeout(1000)
+            if not password_input:
+                return {"success": False, "error": "未找到密码输入框"}
 
-                    # 查找Cloudflare Turnstile iframe（增强重试）
-                    cf_handled_auth = False
-                    for attempt in range(5):  # 从3次增加到5次
-                        try:
-                            frames = popup_page.frames
-                            cf_frame = None
-                            for frame in frames:
-                                frame_url = frame.url
-                                if 'cloudflare' in frame_url or 'turnstile' in frame_url or 'challenges' in frame_url:
-                                    cf_frame = frame
-                                    logger.info(f"{self.account_name}: OAuth页面发现Cloudflare验证 (尝试{attempt+1}/5)")
-                                    break
-
-                            if cf_frame:
-                                logger.info(f"{self.account_name}: 点击OAuth页面的Cloudflare验证...")
-                                # 增加随机延迟模拟人类
-                                await popup_page.wait_for_timeout(800 + random.randint(200, 500))
-
-                                # 多策略点击
-                                clicked = False
-                                try:
-                                    # 策略1: 查找checkbox
-                                    checkbox = await cf_frame.query_selector('input[type="checkbox"]')
-                                    if checkbox:
-                                        await checkbox.click(timeout=3000)
-                                        logger.info(f"{self.account_name}: CF验证点击成功(checkbox)")
-                                        clicked = True
-                                except:
-                                    pass
-
-                                if not clicked:
-                                    try:
-                                        # 策略2: 点击body
-                                        body = await cf_frame.query_selector('body')
-                                        if body:
-                                            await body.click(timeout=3000)
-                                            logger.info(f"{self.account_name}: CF验证点击成功(body)")
-                                            clicked = True
-                                    except Exception as e:
-                                        logger.warning(f"{self.account_name}: CF点击失败: {e}")
-
-                                if clicked:
-                                    cf_handled_auth = True
-                                    # 等待验证完成（更长时间）
-                                    await popup_page.wait_for_timeout(2500 + random.randint(500, 1000))
-
-                                    # 检查验证是否通过
-                                    frames_after = popup_page.frames
-                                    cf_still_exists = any('cloudflare' in f.url or 'turnstile' in f.url for f in frames_after)
-                                    if not cf_still_exists:
-                                        logger.info(f"{self.account_name}: OAuth页面Cloudflare验证通过")
-                                        break
-                                    else:
-                                        logger.warning(f"{self.account_name}: CF验证仍存在，继续尝试...")
-                                        if attempt < 4:
-                                            await popup_page.wait_for_timeout(1000)
-                                else:
-                                    if attempt < 4:
-                                        await popup_page.wait_for_timeout(500)
-                            else:
-                                break
-                        except Exception as e:
-                            if attempt < 4:
-                                await popup_page.wait_for_timeout(500)
-
-                    if cf_handled_auth:
-                        # 等待验证完成并且"允许"按钮出现
-                        logger.info(f"{self.account_name}: 等待Cloudflare验证完成，授权按钮应该会出现...")
-                        await popup_page.wait_for_timeout(3000)
-                        try:
-                            await popup_page.wait_for_load_state("networkidle", timeout=10000)
-                        except:
-                            pass
-                    else:
-                        logger.info(f"{self.account_name}: OAuth页面无需Cloudflare验证")
-
-                except Exception as e:
-                    logger.warning(f"{self.account_name}: OAuth页面Cloudflare检查失败: {e}")
-
-                # 查找并点击"允许"按钮
-                logger.info(f"{self.account_name}: 查找授权确认按钮...")
-                authorize_button = None
-
-                try:
-                    # 方法1: 直接通过文本内容查找（最可靠）
-                    logger.debug(f"   尝试通过文本查找'允许'按钮...")
-                    authorize_button = await popup_page.query_selector('text="允许"')
-
-                    if not authorize_button:
-                        # 方法2: 查找所有按钮，遍历找到包含"允许"的
-                        logger.debug(f"   尝试遍历所有按钮...")
-                        all_buttons = await popup_page.query_selector_all('button')
-                        for btn in all_buttons:
-                            btn_text = await btn.inner_text()
-                            if "允许" in btn_text or "授权" in btn_text or "Authorize" in btn_text or "Allow" in btn_text:
-                                authorize_button = btn
-                                logger.info(f"{self.account_name}: 找到授权按钮: '{btn_text.strip()}'")
-                                break
-
-                    if authorize_button:
-                        is_visible = await authorize_button.is_visible()
-                        if is_visible:
-                            logger.info(f"{self.account_name}: 点击'允许'按钮...")
-                            await authorize_button.click()
-                            await popup_page.wait_for_timeout(2000)
-                            logger.info(f"{self.account_name}: OAuth授权确认完成")
-                        else:
-                            logger.warning(f"{self.account_name}: 找到按钮但不可见")
-                            authorize_button = None
-                    else:
-                        logger.warning(f"{self.account_name}: 未找到授权按钮")
-
-                except Exception as e:
-                    logger.warning(f"{self.account_name}: 查找授权按钮异常: {e}")
-                    authorize_button = None
-
-                if not authorize_button:
-                    logger.warning(f"{self.account_name}: 可能已自动授权，继续等待回调...")
-
-            # 步骤7: 在popup窗口等待OAuth回调到AgentRouter
-            logger.info(f"{self.account_name}: 等待popup窗口OAuth回调...")
+            # 步骤5: 填写邮箱和密码
+            logger.info(f"{self.account_name}: 填写登录表单...")
             try:
-                # 在popup窗口等待回调到 agentrouter.org
-                target_pattern = re.compile(rf"^{re.escape(BASE_URL)}.*")
-                await popup_page.wait_for_url(target_pattern, timeout=25000)
-
-                callback_url = popup_page.url
-                logger.info(f"{self.account_name}: OAuth回调成功（popup窗口）: {callback_url}")
-                logger.debug(f"响应：回调到 {callback_url}")
-
-                # 检查回调URL
-                if "/console/token" in callback_url:
-                    logger.info(f"{self.account_name}: 完美！回调到签到页面: /console/token")
-                elif "/console" in callback_url:
-                    logger.info(f"{self.account_name}: 回调到控制台页面: {callback_url}")
-                else:
-                    logger.warning(f"{self.account_name}: 回调URL不是预期的: {callback_url}")
-
-                # 在popup窗口等待页面完全加载（签到在此时自动触发）
-                logger.info(f"{self.account_name}: 等待页面加载完成（签到会自动触发）...")
-                await popup_page.wait_for_load_state("networkidle", timeout=20000)
-                await popup_page.wait_for_timeout(3000)
-                logger.info(f"{self.account_name}: 页面加载完成，签到已自动完成")
-
+                await email_input.fill(self.email)
+                await page.wait_for_timeout(500)
+                await password_input.fill(self.password)
+                await page.wait_for_timeout(500)
             except Exception as e:
-                logger.error(f"{self.account_name}: 等待OAuth回调失败: {e}")
-                logger.debug(f"   原窗口URL: {page.url}")
-                logger.debug(f"   Popup窗口URL: {popup_page.url}")
-                return {"success": False, "error": f"OAuth回调超时: {str(e)}"}
-            finally:
-                # 关闭popup窗口
-                try:
-                    if not popup_page.is_closed():
-                        await popup_page.close()
-                        logger.info(f"{self.account_name}: 已关闭popup窗口")
-                except:
-                    pass
+                return {"success": False, "error": f"填写表单失败: {str(e)}"}
 
-            # 获取 cookies
+            # 步骤6: 查找并点击登录按钮
+            login_button = None
+            for sel in LOGIN_BUTTON_SELECTORS:
+                try:
+                    login_button = await page.query_selector(sel)
+                    if login_button:
+                        logger.info(f"{self.account_name}: 找到登录按钮: {sel}")
+                        break
+                except:
+                    continue
+
+            if not login_button:
+                return {"success": False, "error": "未找到登录按钮"}
+
+            # 步骤7: 点击登录
+            logger.info(f"{self.account_name}: 点击登录按钮...")
+            await login_button.click()
+
+            # 步骤8: 等待页面跳转或响应
+            try:
+                await page.wait_for_load_state("networkidle", timeout=15000)
+                await page.wait_for_timeout(2000)
+            except:
+                logger.warning(f"{self.account_name}: 页面加载超时，继续检查登录状态...")
+
+            # 步骤9: 检查登录是否成功
+            success, error_msg = await self._check_login_success(page)
+            if not success:
+                return {"success": False, "error": error_msg}
+
+            # 步骤10: 获取 cookies
+            logger.info(f"{self.account_name}: 获取登录cookies...")
             final_cookies = await context.cookies()
             cookies_dict = {cookie["name"]: cookie["value"] for cookie in final_cookies}
 
@@ -728,10 +395,10 @@ class LinuxDoAuthenticator(BaseAuthenticator):
                 if name in cookies_dict:
                     logger.debug(f"   关键cookie {name}: {cookies_dict[name][:50]}...")
 
-            # 提取用户信息
+            # 步骤11: 提取用户信息
             user_id, user_name = await self._extract_user_info(cookies_dict)
 
-            logger.info(f"{self.account_name}: Linux.do 认证成功")
+            logger.info(f"{self.account_name}: 邮箱密码认证成功")
             return {
                 "success": True,
                 "cookies": cookies_dict,
@@ -740,7 +407,7 @@ class LinuxDoAuthenticator(BaseAuthenticator):
             }
 
         except Exception as e:
-            return {"success": False, "error": f"Linux.do 认证失败: {str(e)}"}
+            return {"success": False, "error": f"邮箱密码认证失败: {str(e)}"}
 
 
 # ==================== 签到管理类 ====================
@@ -758,43 +425,33 @@ class AgentRouterCheckIn:
         logger.info(f"{self.account_name}: 开始签到")
         logger.info(f"{'='*60}")
 
-        # 检查 Linux.do 认证配置
-        if "linux.do" not in self.account_config:
+        # 检查邮箱密码认证配置
+        email = self.account_config.get("email")
+        password = self.account_config.get("password")
+
+        if not email or not password:
             return {
                 "success": False,
                 "account": self.account_name,
-                "error": "未配置 Linux.do 认证"
+                "error": "未配置邮箱或密码"
             }
 
-        linuxdo_config = self.account_config["linux.do"]
-        auth_config = {
-            "username": linuxdo_config.get("username"),
-            "password": linuxdo_config.get("password")
-        }
-
-        if not auth_config["username"] or not auth_config["password"]:
-            return {
-                "success": False,
-                "account": self.account_name,
-                "error": "Linux.do 用户名或密码未配置"
-            }
-
-        # 执行 Linux.do 认证签到
-        logger.info(f"\n{self.account_name}: 尝试 linux.do 认证...")
+        # 执行邮箱密码认证签到
+        logger.info(f"\n{self.account_name}: 尝试邮箱密码认证...")
 
         async with async_playwright() as playwright:
             try:
-                result = await self._checkin_with_auth(playwright, "linux.do", auth_config)
+                result = await self._checkin_with_auth(playwright, "email", email, password)
                 return result
             except Exception as e:
-                logger.error(f"{self.account_name}: Linux.do 认证异常: {str(e)}")
+                logger.error(f"{self.account_name}: 邮箱密码认证异常: {str(e)}")
                 return {
                     "success": False,
                     "account": self.account_name,
-                    "error": f"Linux.do 认证异常: {str(e)}"
+                    "error": f"邮箱密码认证异常: {str(e)}"
                 }
 
-    async def _checkin_with_auth(self, playwright, auth_type: str, auth_config: Dict) -> Dict:
+    async def _checkin_with_auth(self, playwright, auth_type: str, email: str, password: str) -> Dict:
         """使用指定认证方式签到"""
         logger.info(f"{self.account_name}: 开始使用 {auth_type} 认证签到流程...")
 
@@ -924,10 +581,11 @@ class AgentRouterCheckIn:
             await page.add_init_script(stealth_script)
             logger.info(f"{self.account_name}: 已注入高级Stealth脚本以增强反检测能力")
 
-            # 用于捕获签到信息
+            # 用于捕获签到信息和用户余额
             checkin_info = {"found": False, "message": "", "reward": ""}
+            user_balance_info = {"quota": 0, "used_quota": 0, "username": ""}
 
-            # 监听所有网络响应，捕获签到相关信息
+            # 监听所有网络响应，捕获签到和余额信息
             async def handle_response(response):
                 try:
                     url = response.url
@@ -982,6 +640,16 @@ class AgentRouterCheckIn:
                                                     checkin_info["reward"] = str(data[key])
                                                     logger.info(f"   奖励: {data[key]}")
                                                     break
+
+                                    # 捕获登录响应中的用户余额信息
+                                    if "/api/user/login" in url or "/api/user/self" in url:
+                                        if json_data.get("success") and json_data.get("data"):
+                                            user_data = json_data["data"]
+                                            if "quota" in user_data:
+                                                user_balance_info["quota"] = user_data.get("quota", 0)
+                                                user_balance_info["used_quota"] = user_data.get("used_quota", 0)
+                                                user_balance_info["username"] = user_data.get("display_name") or user_data.get("username", "")
+                                                logger.debug(f"{self.account_name}: 捕获用户余额 - quota: {user_balance_info['quota']}, used: {user_balance_info['used_quota']}")
                             except Exception as e:
                                 logger.debug(f"  JSON解析失败: {e}")
                 except Exception as e:
@@ -993,8 +661,8 @@ class AgentRouterCheckIn:
                 # 步骤1: 获取 WAF cookies
                 await self._get_waf_cookies(page, context)
 
-                # 步骤2: 执行 Linux.do 认证
-                authenticator = LinuxDoAuthenticator(self.account_name, auth_config)
+                # 步骤2: 执行邮箱密码认证
+                authenticator = EmailAuthenticator(self.account_name, email, password)
                 auth_result = await authenticator.authenticate(page, context)
 
                 if not auth_result["success"]:
@@ -1026,22 +694,33 @@ class AgentRouterCheckIn:
 
                 # AgentRouter的签到机制说明：
                 # - 登录时自动完成签到，无需调用额外API
-                # - 用户信息API需要access token，无法通过cookie访问
-                # - 因此登录成功即表示签到成功
+                # - 用户余额信息从登录响应中获取
 
+                # 计算余额（转换为美元）
+                quota_dollar = round(user_balance_info["quota"] / QUOTA_TO_DOLLAR_RATE, 2)
+                used_dollar = round(user_balance_info["used_quota"] / QUOTA_TO_DOLLAR_RATE, 2)
+
+                # 构建用户信息
                 user_info = {
                     "success": True,
-                    "message": "登录成功，签到自动完成"
+                    "quota": quota_dollar,
+                    "used": used_dollar,
+                    "display": f"余额: ${quota_dollar:.2f}, 已用: ${used_dollar:.2f}"
                 }
 
+                # 使用捕获的用户名（如果有）
+                username = user_balance_info.get("username") or auth_result.get("username")
+
                 logger.info(f"{self.account_name}: 签到流程完成，结果：成功")
+                if quota_dollar > 0 or used_dollar > 0:
+                    logger.info(f"{self.account_name}: {user_info['display']}")
 
                 return {
                     "success": True,
                     "account": self.account_name,
                     "auth_method": auth_type,
                     "user_info": user_info,
-                    "username": auth_result.get("username"),
+                    "username": username,
                     "message": checkin_msg,
                     "checkin_reward": checkin_info.get("reward", "")
                 }
@@ -1068,91 +747,6 @@ class AgentRouterCheckIn:
         except Exception as e:
             logger.warning(f"{self.account_name}: 获取 WAF cookies 失败: {e}")
 
-    async def _do_checkin(self, cookies: Dict[str, str]) -> Tuple[bool, str]:
-        """调用签到API"""
-        try:
-            logger.info(f"{self.account_name}: 调用签到接口...")
-            headers = {
-                "User-Agent": DEFAULT_USER_AGENT,
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-            }
-
-            async with httpx.AsyncClient(cookies=cookies, timeout=10.0, verify=True) as client:
-                response = await client.post(CHECKIN_URL, headers=headers)
-
-                logger.debug(f"API 请求：POST {CHECKIN_URL}")
-                logger.debug(f"响应：状态码 {response.status_code}")
-                logger.debug(f"响应内容: {response.text[:500]}")
-
-                if response.status_code == 200:
-                    try:
-                        data = response.json()
-                        if data.get("success") or data.get("ret") == 1:
-                            message = data.get("message", data.get("msg", "签到成功"))
-                            logger.info(f"{self.account_name}: {message}")
-                            return True, message
-                        else:
-                            error_msg = data.get("message", data.get("msg", "签到失败"))
-                            logger.warning(f"{self.account_name}: {error_msg}")
-                            return False, error_msg
-                    except:
-                        # JSON解析失败，可能是HTML响应
-                        logger.warning(f"{self.account_name}: 签到响应格式异常")
-                        return False, "响应格式异常"
-                elif response.status_code == 404:
-                    # 签到接口不存在，可能已废弃
-                    logger.info(f"{self.account_name}: 签到接口返回404，可能已废弃")
-                    return True, "签到接口不存在（可能已废弃）"
-                else:
-                    logger.error(f"{self.account_name}: 签到请求失败: HTTP {response.status_code}")
-                    return False, f"HTTP {response.status_code}"
-
-        except Exception as e:
-            logger.error(f"{self.account_name}: 签到异常: {e}")
-            return False, str(e)
-
-    async def _get_user_info(self, cookies: Dict[str, str]) -> Optional[Dict]:
-        """获取用户信息"""
-        try:
-            # 打印将要使用的cookies
-            logger.info(f"{self.account_name}: 准备调用用户信息API，使用 {len(cookies)} 个 cookies")
-            for name in KEY_COOKIE_NAMES:
-                if name in cookies:
-                    logger.debug(f"   {name}: {cookies[name][:30]}...")
-
-            headers = {"User-Agent": DEFAULT_USER_AGENT, "Accept": "application/json"}
-            async with httpx.AsyncClient(cookies=cookies, timeout=10.0, verify=True) as client:
-                response = await client.get(USER_INFO_URL, headers=headers)
-
-                logger.debug(f"API 请求：GET {USER_INFO_URL}")
-                logger.debug(f"响应：状态码 {response.status_code}")
-
-                if response.status_code == 200:
-                    data = response.json()
-                    # 打印完整的用户数据以便调试
-                    logger.debug(f"   完整数据: {json.dumps(data, ensure_ascii=False, indent=2)[:500]}")
-
-                    if data.get("success") and data.get("data"):
-                        user_data = data["data"]
-                        quota = user_data.get("quota", 0) / QUOTA_TO_DOLLAR_RATE
-                        used = user_data.get("used_quota", 0) / QUOTA_TO_DOLLAR_RATE
-
-                        # 检查是否有签到相关字段
-                        checkin_status = user_data.get("checkin_status") or user_data.get("signin_status") or user_data.get("daily_checkin")
-                        if checkin_status:
-                            logger.debug(f"   签到状态: {checkin_status}")
-
-                        return {
-                            "success": True,
-                            "quota": round(quota, 2),
-                            "used": round(used, 2),
-                            "display": f"余额: ${quota:.2f}, 已用: ${used:.2f}",
-                            "checkin_status": checkin_status
-                        }
-        except Exception as e:
-            logger.warning(f"{self.account_name}: 获取用户信息失败: {e}")
-        return None
 
 
 # ==================== 主函数 ====================
