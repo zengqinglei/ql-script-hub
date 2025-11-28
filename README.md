@@ -44,14 +44,11 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 
 进入 **Actions** > **签到任务** > **Run workflow**：
 
-1. **是否运行所有脚本**：
-   - `true`（默认）：运行所有已配置的脚本
-   - `false`：只运行下方选择的单个脚本
+**选择要运行的脚本**：
+- `all`（默认）：运行所有已配置的脚本
+- 或选择单个脚本：`ikuuu`、`aliyunpan`、`agentrouter` 等
 
-2. **选择要运行的单个脚本**（仅当第一项为 `false` 时生效）：
-   - 从下拉列表中选择一个脚本（如 `ikuuu`、`aliyunpan`、`agentrouter` 等）
-
-**说明：** 默认自动检测环境变量，只运行已配置的脚本。
+**说明：** 自动检测环境变量，只运行已配置的脚本。
 
 ### ⏰ 定时任务
 
@@ -80,7 +77,6 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 ### ⚠️ 注意事项
 
 - **仓库活跃度**：60 天无提交，定时任务会被禁用
-- **AgentRouter**：无头模式成功率较低（约 30-50%）
 - **定时任务延迟**：可能有 5-10 分钟延迟
 - **Cloudflare WARP**：已集成 WARP 绕过部分网站的 IP 封锁限制
 
@@ -504,18 +500,18 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 
 | 变量名 | 说明 | 是否必需 | 示例值 |
 |--------|------|----------|--------|
-| `AGENTROUTER_ACCOUNTS` | Linux.do账号配置（JSON数组） | 必需 | 见下方说明 |
+| `AGENTROUTER_ACCOUNTS` | 账号配置（JSON数组） | 必需 | 见下方说明 |
 | `BROWSER_HEADLESS` | 浏览器无头模式 | 可选 | `true` |
 
-**⚠️ 与 AnyRouter 的重要区别：**
-- AgentRouter 使用 **Linux.do OAuth 认证**，不需要抓包获取 cookies
-- 只需要提供 Linux.do 的登录账号和密码即可
-- 脚本会自动使用 Playwright 浏览器完成 OAuth 认证流程
+**认证方式：**
+- AgentRouter 使用 **邮箱密码认证**
+- 脚本会自动使用 Playwright 浏览器完成登录
+- 登录成功后自动触发签到，并显示账户余额
 
 **配置步骤：**
 
-1. **准备 Linux.do 账号**
-   - 访问 [Linux.do](https://linux.do) 注册账号（如果还没有）
+1. **获取 AgentRouter 账号**
+   - 访问 [AgentRouter](https://agentrouter.org) 注册账号
    - 记录你的登录邮箱和密码
 
 2. **配置环境变量**
@@ -525,10 +521,8 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 [
   {
     "name": "我的AgentRouter账号",
-    "linux.do": {
-      "username": "你的Linux.do登录邮箱",
-      "password": "你的Linux.do登录密码"
-    }
+    "email": "your_email@example.com",
+    "password": "your_password"
   }
 ]
 ```
@@ -538,17 +532,13 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 [
   {
     "name": "账号1",
-    "linux.do": {
-      "username": "user1@example.com",
-      "password": "password1"
-    }
+    "email": "user1@example.com",
+    "password": "password1"
   },
   {
     "name": "账号2",
-    "linux.do": {
-      "username": "user2@example.com",
-      "password": "password2"
-    }
+    "email": "user2@example.com",
+    "password": "password2"
   }
 ]
 ```
@@ -558,9 +548,9 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
   - 最小配置：CPU 100m + 内存 384MB（可运行但成功率较低）
   - 推荐配置：CPU 500m + 内存 1GB（成功率更高）
   - 建议设置 `BROWSER_HEADLESS=false` 使用有头模式，成功率更高
-- **GitHub Actions 用户**: 只能使用无头模式，成功率较低（约 30-50%）
-- 认证过程需要 30-60 秒，请耐心等待
-- 如果认证失败，可以多次重试
+- **GitHub Actions 用户**: 使用无头模式运行
+- 登录过程需要 10-20 秒，请耐心等待
+- 签到成功后会显示账户余额信息
 - **安全提示**：密码会存储在环境变量中，请确保环境安全
 
 </details>
