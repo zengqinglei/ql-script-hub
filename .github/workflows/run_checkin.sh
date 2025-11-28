@@ -9,12 +9,11 @@ echo "开始执行签到任务"
 echo "当前时间: $(date '+%Y-%m-%d %H:%M:%S %Z')"
 echo "=========================================="
 
-# 获取输入参数
-RUN_ALL="${1:-true}"
-SCRIPT_NAME="${2:-}"
+# 获取输入参数（默认为 all）
+SCRIPT_NAME="${1:-all}"
 
 # 根据选择确定要运行的脚本
-if [ "$RUN_ALL" = "true" ]; then
+if [ "$SCRIPT_NAME" = "all" ]; then
   SCRIPTS_INPUT="all"
   echo "运行模式: 所有脚本"
 else
