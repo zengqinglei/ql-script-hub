@@ -612,6 +612,43 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 
 </details>
 
+### 💎 GemAI
+
+<details>
+<summary>点击展开配置</summary>
+
+| 变量名 | 说明 | 是否必需 | 示例值 |
+|--------|------|----------|--------|
+| `GEMAI_ACCOUNTS` | 账号配置（JSON数组） | 必需 | 见下方说明 |
+| `GEMAI_BASE_URL` | API基础地址 | 可选 | `https://api.gemai.cc` |
+| `GEMAI_TIMEOUT` | 请求超时时间（秒） | 可选 | `30` |
+
+**获取方式：**
+1. 浏览器访问 [GemAI](https://api.gemai.cc) 并登录
+2. 按 `F12` 打开开发者工具 → `Network` 标签页
+3. 刷新页面，找到任意 API 请求（如 `/api/user/self`）
+4. 查看请求的 Headers：
+   - **Cookies**：复制 Cookie 字段的值（主要需要 `session`）
+   - **new-api-user**：复制该请求头的值（这是你的 api_user ID）
+5. 将信息组合成 JSON 数组格式
+
+**配置示例：**
+```json
+[
+  {
+    "cookies": "session=你的session值",
+    "api_user": "你的api_user值"
+  }
+]
+```
+
+**注意事项：**
+- 必须使用 JSON 数组格式 `[{}]`
+- 多账号添加多个对象，用逗号分隔
+- 此脚本使用 Cookie 方式运行，无需 Playwright，轻量稳定
+
+</details>
+
 ---
 
 ## 📄 免责声明
