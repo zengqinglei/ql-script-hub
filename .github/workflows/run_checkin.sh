@@ -114,6 +114,8 @@ run_script "ty_netdisk" "ty_netdisk_checkin.py" "TY_USERNAME" "TY_PASSWORD"
 run_script "sfsu" "sfsu_checkin.py" "SFSU_COOKIE"
 run_script "enshan" "enshan_checkin.py" "ENSHAN_COOKIE"
 run_script "agentrouter" "agentrouter_checkin.py" "AGENTROUTER_ACCOUNTS"
+run_script "996coder" "996coder_checkin.py" "CODER996_ACCOUNTS"
+run_script "gemai" "gemai_checkin.py" "GEMAI_ACCOUNTS"
 
 echo ""
 echo "=========================================="
