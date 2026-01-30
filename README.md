@@ -102,8 +102,8 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
    进入青龙面板 → 依赖管理 → Python3：
 
    - **公共依赖**：`requests`
-   - **anyrouter 签到依赖**：`PyExecJS`
-   - **agentrouter 签到依赖**：`httpx playwright`
+   - **anyrouter/gemai 签到依赖**：`PyExecJS`
+   - **agentrouter/996coder 签到依赖**：`httpx playwright`
    - **完整依赖：**：`--upgrade pip && pip install requests PyExecJS httpx playwright && playwright install chromium`
 
 3. **安装 Linux 依赖**
@@ -111,7 +111,7 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
    进入青龙面板 → 依赖管理 → Linux：
 
    - **公共依赖**：无
-   - **agentrouter 签到依赖**：`debianutils && apt-get update && apt-get install -y libgbm1 libglib2.0-0 libnss3 libnspr4 libxss1 libdrm2 libgtk-3-0 libasound2`
+   - **agentrouter/996coder 签到依赖**：`debianutils && apt-get update && apt-get install -y libgbm1 libglib2.0-0 libnss3 libnspr4 libxss1 libdrm2 libgtk-3-0 libasound2`
 
 4. **配置环境变量**
 

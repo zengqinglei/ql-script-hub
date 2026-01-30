@@ -22,7 +22,9 @@ on:
           - leaflow
           - aliyunpan
           - anyrouter
+          - gemai
           - agentrouter
+          - 996coder
           - youdaoyun
           - baiduwangpan
           - quark
@@ -125,11 +127,19 @@ jobs:
           ANYROUTER_ACCOUNTS: ${{ secrets.ANYROUTER_ACCOUNTS }}
           ANYROUTER_BASE_URL: ${{ secrets.ANYROUTER_BASE_URL }}
 
+          # GemAI 配置
+          GEMAI_ACCOUNTS: ${{ secrets.GEMAI_ACCOUNTS }}
+          GEMAI_BASE_URL: ${{ secrets.GEMAI_BASE_URL }}
+
           # 有道云笔记配置
           YOUDAO_COOKIE: ${{ secrets.YOUDAO_COOKIE }}
 
           # AgentRouter 配置
           AGENTROUTER_ACCOUNTS: ${{ secrets.AGENTROUTER_ACCOUNTS }}
+          
+          # 996Coder 配置
+          CODER996_ACCOUNTS: ${{ secrets.CODER996_ACCOUNTS }}
+          
           BROWSER_HEADLESS: 'true'
 
           # 百度网盘配置
