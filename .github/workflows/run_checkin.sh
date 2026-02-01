@@ -90,10 +90,25 @@ run_script() {
   echo "▶️  开始执行: $script_name"
   echo "=========================================="
 
-  if python "$script_file"; then
-    echo "✅ $script_name 执行成功"
+  # 检查是否需要绕过代理
+  # 定义不走代理的脚本列表 (如需 leaflow 不走代理，可将其加入)
+  # 示例: NO_PROXY_SCRIPTS="leaflow,other_script"
+  # 当前通过检测环境变量 NO_PROXY_SCRIPTS 来控制
+  
+  if echo ",$NO_PROXY_SCRIPTS," | grep -q ",$script_name,"; then
+    echo "🛡️  模式: 直连 (绕过代理)"
+    # 使用 env -u 临时移除代理环境变量
+    if env -u http_proxy -u https_proxy -u ALL_PROXY python "$script_file"; then
+      echo "✅ $script_name 执行成功"
+    else
+      echo "❌ $script_name 执行失败（退出码: $?）"
+    fi
   else
-    echo "❌ $script_name 执行失败（退出码: $?）"
+    if python "$script_file"; then
+      echo "✅ $script_name 执行成功"
+    else
+      echo "❌ $script_name 执行失败（退出码: $?）"
+    fi
   fi
 }
 

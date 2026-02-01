@@ -356,6 +356,29 @@ def update_environment_variable(var_name, new_value, old_value=None):
         elif os.path.exists('/.dockerenv'):
             return update_docker_env(var_name, new_value)
 
+        # 检查是否在 GitHub Actions 环境
+        elif os.getenv("GITHUB_ACTIONS") == "true":
+            logger.info("检测到 GitHub Actions 环境...")
+            env_file = os.getenv("GITHUB_ENV")
+            if env_file:
+                try:
+                    with open(env_file, "a") as f:
+                        # update_secrets.py 读取的是 NEW_ALIYUN_REFRESH_TOKEN
+                        # 如果 var_name 是 ALIYUN_REFRESH_TOKEN，我们需要将其转为 NEW_ALIYUN_REFRESH_TOKEN
+                        write_var_name = var_name
+                        if var_name == "ALIYUN_REFRESH_TOKEN":
+                            write_var_name = "NEW_ALIYUN_REFRESH_TOKEN"
+                        
+                        f.write(f"{write_var_name}={new_value}\n")
+                    logger.info(f"已将新 Token 写入 GITHUB_ENV: {write_var_name}")
+                    return True
+                except Exception as e:
+                    logger.error(f"写入 GITHUB_ENV 失败: {e}")
+                    return False
+            else:
+                logger.warning("GITHUB_ENV 环境变量未设置")
+                return False
+
         # 其他环境（本地运行等）
         else:
             return update_local_env(var_name, new_value)
