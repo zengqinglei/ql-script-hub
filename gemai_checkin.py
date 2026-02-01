@@ -504,6 +504,11 @@ def check_in_account(account_info, account_index):
                         return "success", msg, before_info if before_success else None, 0, username
                 else:
                     error_msg = result.get('msg') or result.get('message') or '未知错误'
+                    # 特殊处理：如果消息包含"已签到"，则视为成功
+                    if "已签到" in error_msg or "already" in error_msg.lower():
+                        logger.info(f"今日已签到: {error_msg}")
+                        return "success", "今日已签到", before_info if before_success else None, 0, username
+
                     logger.error(f"签到失败，原因：{error_msg}")
                     return "fail", error_msg, before_info if before_success else None, 0, username
             except json.JSONDecodeError:
