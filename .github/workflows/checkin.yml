@@ -115,6 +115,7 @@ jobs:
           # iKuuu 配置
           IKUUU_EMAIL: ${{ secrets.IKUUU_EMAIL }}
           IKUUU_PASSWD: ${{ secrets.IKUUU_PASSWD }}
+          IKUUU_DOMAIN: ${{ secrets.IKUUU_DOMAIN }}
 
           # Leaflow 配置
           LEAFLOW_COOKIE: ${{ secrets.LEAFLOW_COOKIE }}

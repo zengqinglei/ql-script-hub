@@ -80,9 +80,12 @@ except ImportError:
 # 配置项
 IKUUU_EMAIL = os.environ.get('IKUUU_EMAIL', '')
 IKUUU_PASSWD = os.environ.get('IKUUU_PASSWD', '')
+IKUUU_DOMAIN = os.environ.get('IKUUU_DOMAIN')
+if not IKUUU_DOMAIN:
+    IKUUU_DOMAIN = 'https://ikuuu.nl'
 
-# ikuuu.de 域名配置
-BASE_URL = 'https://ikuuu.de'
+# 域名配置
+BASE_URL = IKUUU_DOMAIN
 LOGIN_URL = f'{BASE_URL}/auth/login'
 CHECK_URL = f'{BASE_URL}/user/checkin'
 
@@ -298,7 +301,7 @@ class IkuuuSigner:
         checkin_success, checkin_msg = self.checkin()
 
         # 4. 组合结果消息（统一模板）
-        final_msg = f"""🌐 域名：ikuuu.de
+        final_msg = f"""🌐 域名：{BASE_URL}
 
 👤 账号{self.index}：
 📱 用户：{self.email}
@@ -369,7 +372,7 @@ def main():
 
     # 发送汇总通知（统一格式）
     if total_count > 1:
-        summary_msg = f"""🌐 域名：ikuuu.de
+        summary_msg = f"""🌐 域名：{BASE_URL}
 
 📊 签到汇总：
 ✅ 成功：{success_count}个
