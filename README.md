@@ -7,6 +7,14 @@
 [![GitHub issues](https://img.shields.io/github/issues/agluo/ql-script-hub?style=flat-square)](https://github.com/agluo/ql-script-hub/issues)
 [![License](https://img.shields.io/github/license/agluo/ql-script-hub?style=flat-square)](https://github.com/agluo/ql-script-hub/blob/main/LICENSE)
 
+## 📅 更新日志
+
+- **2026-02-01**: 
+  - 修复阿里云盘 Token 自动更新机制，支持 GitHub Actions Secrets 自动同步
+  - 新增 `NO_PROXY_SCRIPTS` 配置，支持指定脚本直连（绕过代理）
+  - iKuuu 签到增加 `IKUUU_DOMAIN` 自定义域名配置
+  - 修复 GemAI/AnyRouter 签到脚本在“已签到”状态下的误报问题
+
 ## 📋 项目简介
 
 QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签到、薅羊毛等多种类型的自动化脚本。所有脚本均经过测试，确保稳定可靠。
@@ -173,7 +181,7 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 5. 多账号用 `&` 或换行分隔
 
 **配置说明：**
-- `AUTO_UPDATE_TOKEN`: 默认 `true`，自动维护token
+- `AUTO_UPDATE_TOKEN`: 默认 `true`，自动维护token（GitHub Actions 环境下会自动更新 Secrets）
 - `PRIVACY_MODE`: 默认 `true`，脱敏显示敏感信息
 
 </details>
@@ -403,10 +411,35 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 |--------|------|----------|--------|
 | `IKUUU_EMAIL` | 登录邮箱 | 必需 | `user@example.com` |
 | `IKUUU_PASSWD` | 登录密码 | 必需 | `password123` |
+| `IKUUU_DOMAIN` | 自定义域名 | 可选 | `https://ikuuu.nl` |
+
+**配置说明：**
+- `IKUUU_DOMAIN`: 默认 `https://ikuuu.nl`，如果域名变更可在此修改
+- 多账号用英文逗号分隔: `email1,email2`
+- 密码顺序要与邮箱顺序对应: `password1,password2`
+
+</details>
+
+### 🏰 z.luxury
+
+<details>
+<summary>点击展开配置</summary>
+
+| 变量名 | 说明 | 是否必需 | 示例值 |
+|--------|------|----------|--------|
+| `Z_LUXURY_EMAIL` | 登录账号 | 必需 | `413210209` |
+| `Z_LUXURY_PASSWD` | 登录密码 | 必需 | `password123` |
+| `YESCAPTCHA_CLIENT_KEY` | 打码平台Key | 必需 | `43d97d5...` |
+| `Z_LUXURY_DOMAIN` | 自定义域名 | 可选 | `https://z.luxury` |
+
+**获取方式：**
+1. **YesCaptcha Key**: 访问 [YesCaptcha](https://yescaptcha.com/) 注册并获取 Client Key (用于自动过 Recaptcha 验证码)
+2. **账号密码**: 使用你的 z.luxury 登录账号和密码
 
 **配置说明：**
 - 多账号用英文逗号分隔: `email1,email2`
 - 密码顺序要与邮箱顺序对应: `password1,password2`
+- `YESCAPTCHA_CLIENT_KEY`: 必填，否则无法通过验证码
 
 </details>
 
@@ -651,7 +684,25 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 
 ---
 
-## 📄 免责声明
+### 🌐 代理配置（高级）
+
+<details>
+<summary>点击展开配置</summary>
+
+GitHub Actions 环境默认会使用 WARP 代理以绕过 IP 限制。如果某些脚本（如 Leaflow）在使用代理时出现问题，可以通过配置 `NO_PROXY_SCRIPTS` 环境变量使其直连。
+
+| 变量名 | 说明 | 是否必需 | 示例值 |
+|--------|------|----------|--------|
+| `NO_PROXY_SCRIPTS` | 不走代理的脚本列表 | 可选 | `leaflow,ikuuu` |
+
+**配置说明：**
+- 值为脚本名称（不带后缀），多个脚本用逗号分隔
+- 示例：`leaflow` 表示 leaflow_checkin.py 将不走代理直连
+- 仅在 GitHub Actions 环境下生效
+
+</details>
+
+### 📄 免责声明
 
 - 本项目仅供学习交流使用，请勿用于商业用途
 - 使用本项目所产生的任何问题，作者不承担任何责任

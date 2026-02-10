@@ -114,6 +114,7 @@ run_script() {
 
 # 执行各个签到脚本
 run_script "ikuuu" "ikuuu_checkin.py" "IKUUU_EMAIL" "IKUUU_PASSWD"
+run_script "z_luxury" "z_luxury_checkin.py" "Z_LUXURY_EMAIL" "Z_LUXURY_PASSWD" "YESCAPTCHA_CLIENT_KEY"
 run_script "leaflow" "leaflow_checkin.py" "LEAFLOW_COOKIE"
 run_script "aliyunpan" "aliyunpan_checkin.py" "ALIYUN_REFRESH_TOKEN"
 run_script "anyrouter" "anyrouter_checkin.py" "ANYROUTER_ACCOUNTS"
