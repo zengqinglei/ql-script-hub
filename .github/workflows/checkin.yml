@@ -19,6 +19,7 @@ on:
         options:
           - all
           - ikuuu
+          - z_luxury
           - leaflow
           - aliyunpan
           - anyrouter
@@ -116,6 +117,12 @@ jobs:
           IKUUU_EMAIL: ${{ secrets.IKUUU_EMAIL }}
           IKUUU_PASSWD: ${{ secrets.IKUUU_PASSWD }}
           IKUUU_DOMAIN: ${{ secrets.IKUUU_DOMAIN }}
+
+          # z.luxury 配置
+          Z_LUXURY_EMAIL: ${{ secrets.Z_LUXURY_EMAIL }}
+          Z_LUXURY_PASSWD: ${{ secrets.Z_LUXURY_PASSWD }}
+          YESCAPTCHA_CLIENT_KEY: ${{ secrets.YESCAPTCHA_CLIENT_KEY }}
+          Z_LUXURY_DOMAIN: ${{ secrets.Z_LUXURY_DOMAIN }}
 
           # Leaflow 配置
           LEAFLOW_COOKIE: ${{ secrets.LEAFLOW_COOKIE }}

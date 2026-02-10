@@ -420,6 +420,29 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 
 </details>
 
+### 🏰 z.luxury
+
+<details>
+<summary>点击展开配置</summary>
+
+| 变量名 | 说明 | 是否必需 | 示例值 |
+|--------|------|----------|--------|
+| `Z_LUXURY_EMAIL` | 登录账号 | 必需 | `413210209` |
+| `Z_LUXURY_PASSWD` | 登录密码 | 必需 | `password123` |
+| `YESCAPTCHA_CLIENT_KEY` | 打码平台Key | 必需 | `43d97d5...` |
+| `Z_LUXURY_DOMAIN` | 自定义域名 | 可选 | `https://z.luxury` |
+
+**获取方式：**
+1. **YesCaptcha Key**: 访问 [YesCaptcha](https://yescaptcha.com/) 注册并获取 Client Key (用于自动过 Recaptcha 验证码)
+2. **账号密码**: 使用你的 z.luxury 登录账号和密码
+
+**配置说明：**
+- 多账号用英文逗号分隔: `email1,email2`
+- 密码顺序要与邮箱顺序对应: `password1,password2`
+- `YESCAPTCHA_CLIENT_KEY`: 必填，否则无法通过验证码
+
+</details>
+
 ### 🌊 Leaflow
 
 <details>
