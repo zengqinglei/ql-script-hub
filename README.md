@@ -501,7 +501,7 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 2. 按 `F12` 打开开发者工具 → `Network` 标签页
 3. 刷新页面，找到任意 API 请求（如 `/api/user/self`）
 4. 查看请求的 Headers：
-   - **Cookies**：复制 Cookie 字段的值（如 `session=xxx; token=xxx`）
+   - **Cookies**：复制 Cookie 字段的值（如 `session=xxx; ...`）
    - **new-api-user**：复制该请求头的值（这是你的 api_user ID）
 5. 将信息组合成 JSON 数组格式
 
@@ -509,10 +509,7 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 ```json
 [
   {
-    "cookies": {
-      "session": "你的session值",
-      "token": "你的token值"
-    },
+    "cookies": "session=你的session值",
     "api_user": "你的api_user值"
   }
 ]
