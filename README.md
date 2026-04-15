@@ -9,11 +9,16 @@
 
 ## 📅 更新日志
 
+- **2026-04-15**:
+  - 整合 GemAI、AnyRouter、AgentRouter、996Coder 为统一脚本 `newapi_checkin.py`
+  - 使用 `NEWAPI_ACCOUNTS` 单一环境变量管理所有 NewAPI 系站点账号
+  - 认证方式通过账号字段自动判断，签到路径默认 fallback，支持按需覆盖
+
 - **2026-02-01**: 
   - 修复阿里云盘 Token 自动更新机制，支持 GitHub Actions Secrets 自动同步
   - 新增 `NO_PROXY_SCRIPTS` 配置，支持指定脚本直连（绕过代理）
   - iKuuu 签到增加 `IKUUU_DOMAIN` 自定义域名配置
-  - 修复 GemAI/AnyRouter 签到脚本在“已签到”状态下的误报问题
+  - 修复 GemAI/AnyRouter 签到脚本在"已签到"状态下的误报问题
 
 ## 📋 项目简介
 
@@ -110,8 +115,8 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
    进入青龙面板 → 依赖管理 → Python3：
 
    - **公共依赖**：`requests`
-   - **anyrouter/gemai 签到依赖**：`PyExecJS`
-   - **agentrouter/996coder 签到依赖**：`httpx playwright`
+   - **newapi 签到（Cookie 模式）依赖**：`PyExecJS`
+   - **newapi 签到（浏览器模式）依赖**：`httpx playwright`
    - **完整依赖：**：`--upgrade pip && pip install requests PyExecJS httpx playwright && playwright install chromium`
 
 3. **安装 Linux 依赖**
@@ -119,7 +124,7 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
    进入青龙面板 → 依赖管理 → Linux：
 
    - **公共依赖**：无
-   - **agentrouter/996coder 签到依赖**：`debianutils && apt-get update && apt-get install -y libgbm1 libglib2.0-0 libnss3 libnspr4 libxss1 libdrm2 libgtk-3-0 libasound2`
+   - **newapi 签到依赖**：`debianutils && apt-get update && apt-get install -y libgbm1 libglib2.0-0 libnss3 libnspr4 libxss1 libdrm2 libgtk-3-0 libasound2`
 
 4. **配置环境变量**
 
@@ -138,25 +143,25 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 
 | 变量名 | 说明 | 是否必需 | 示例值 |
 |--------|------|----------|--------|
-| `TG_BOT_TOKEN` | Telegram机器人Token | 推荐 | `1234567890:AAG9rt...` |
-| `TG_USER_ID` | Telegram用户ID | 推荐 | `1434078534` |
-| `PUSH_KEY` | Server酱推送Key | 可选 | `SCT300842T...` |
-| `QYWX_KEY` | 企业微信机器人Key | 可选 | `5036ccf4-7f42...` |
-| `PUSH_PLUS_TOKEN` | Push+推送Token | 可选 | `xxxxxxxxxx` |
-| `DD_BOT_TOKEN` | 钉钉机器人Token | 可选 | `xxxxxxxxxx` |
+| `TG_BOT_TOKEN` | Telegram 机器人 Token | 推荐 | `1234567890:AAG9rt...` |
+| `TG_USER_ID` | Telegram 用户 ID | 推荐 | `1434078534` |
+| `PUSH_KEY` | Server 酱推送 Key | 可选 | `SCT300842T...` |
+| `QYWX_KEY` | 企业微信机器人 Key | 可选 | `5036ccf4-7f42...` |
+| `PUSH_PLUS_TOKEN` | Push+ 推送 Token | 可选 | `xxxxxxxxxx` |
+| `DD_BOT_TOKEN` | 钉钉机器人 Token | 可选 | `xxxxxxxxxx` |
 | `DD_BOT_SECRET` | 钉钉机器人密钥 | 可选 | `xxxxxxxxxx` |
-| `BARK_PUSH` | Bark推送地址 | 可选 | `https://api.day.app/your_key/` |
+| `BARK_PUSH` | Bark 推送地址 | 可选 | `https://api.day.app/your_key/` |
 
 **获取方式：**
 
 **Telegram 配置获取：**
-1. 创建机器人: 与 [@BotFather](https://t.me/botfather) 对话，发送 `/newbot`
-2. 获取Token: 创建完成后会收到 `TG_BOT_TOKEN`
-3. 获取用户ID: 与 [@userinfobot](https://t.me/userinfobot) 对话获取 `TG_USER_ID`
+1. 创建机器人：与 [@BotFather](https://t.me/botfather) 对话，发送 `/newbot`
+2. 获取 Token: 创建完成后会收到 `TG_BOT_TOKEN`
+3. 获取用户 ID: 与 [@userinfobot](https://t.me/userinfobot) 对话获取 `TG_USER_ID`
 
 **其他推送方式：**
-- Server酱: 访问 [sct.ftqq.com](https://sct.ftqq.com) 获取
-- 企业微信: 企业微信群机器人
+- Server 酱：访问 [sct.ftqq.com](https://sct.ftqq.com) 获取
+- 企业微信：企业微信群机器人
 - Push+: 访问 [pushplus.plus](https://pushplus.plus) 获取
 - Bark: iOS Bark 应用推送
 
@@ -170,7 +175,7 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 | 变量名 | 说明 | 是否必需 | 示例值 |
 |--------|------|----------|--------|
 | `ALIYUN_REFRESH_TOKEN` | refresh_token | 必需 | `crsh166bdfde4751a4c0...` |
-| `AUTO_UPDATE_TOKEN` | 自动更新Token | 可选 | `true` |
+| `AUTO_UPDATE_TOKEN` | 自动更新 Token | 可选 | `true` |
 | `PRIVACY_MODE` | 隐私保护模式 | 可选 | `true` |
 
 **获取方式：**
@@ -181,7 +186,7 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 5. 多账号用 `&` 或换行分隔
 
 **配置说明：**
-- `AUTO_UPDATE_TOKEN`: 默认 `true`，自动维护token（GitHub Actions 环境下会自动更新 Secrets）
+- `AUTO_UPDATE_TOKEN`: 默认 `true`，自动维护 token（GitHub Actions 环境下会自动更新 Secrets）
 - `PRIVACY_MODE`: 默认 `true`，脱敏显示敏感信息
 
 </details>
@@ -193,7 +198,7 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 
 | 变量名 | 说明 | 是否必需 | 示例值 |
 |--------|------|----------|--------|
-| `BAIDU_COOKIE` | 网站Cookie | 必需 | `BDUSS=xxx; STOKEN=xxx...` |
+| `BAIDU_COOKIE` | 网站 Cookie | 必需 | `BDUSS=xxx; STOKEN=xxx...` |
 | `PRIVACY_MODE` | 隐私模式 | 可选 | `true` |
 
 **获取方式：**
@@ -211,14 +216,14 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 
 | 变量名 | 说明 | 是否必需 | 示例值 |
 |--------|------|----------|--------|
-| `QUARK_COOKIE` | 夸克网盘Cookie | 必需 | `user=张三; kps=xxx; sign=yyy; vcode=zzz;` |
+| `QUARK_COOKIE` | 夸克网盘 Cookie | 必需 | `user=张三; kps=xxx; sign=yyy; vcode=zzz;` |
 
 **获取方式：**
-1. 使用**手机抓包工具**获取移动端Cookie（推荐 [ProxyPin](https://github.com/wanghongenpin/network_proxy_flutter)）
+1. 使用**手机抓包工具**获取移动端 Cookie（推荐 [ProxyPin](https://github.com/wanghongenpin/network_proxy_flutter)）
 2. 打开手机抓包工具，访问夸克网盘签到页
 3. 找到接口 `https://drive-m.quark.cn/1/clouddrive/capacity/growth/info` 的请求信息
 4. 复制请求中的参数：`kps`、`sign` 和 `vcode`
-5. 按以下格式组合Cookie：
+5. 按以下格式组合 Cookie：
    ```
    user=张三; kps=abcdefg; sign=hijklmn; vcode=111111111;
    ```
@@ -252,7 +257,7 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 
 | 变量名 | 说明 | 是否必需 | 示例值 |
 |--------|------|----------|--------|
-| `NODESEEK_COOKIE` | 网站Cookie | 必需 | `cookie1&cookie2&cookie3` |
+| `NODESEEK_COOKIE` | 网站 Cookie | 必需 | `cookie1&cookie2&cookie3` |
 | `NS_RANDOM` | 签到随机参数 | 可选 | `true` |
 
 **获取方式：**
@@ -271,7 +276,7 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 
 | 变量名 | 说明 | 是否必需 | 示例值 |
 |--------|------|----------|--------|
-| `DEEPFLOOD_COOKIE` | 网站Cookie | 必需 | `cookie1&cookie2` |
+| `DEEPFLOOD_COOKIE` | 网站 Cookie | 必需 | `cookie1&cookie2` |
 | `NS_RANDOM` | 签到随机参数 | 可选 | `true` |
 
 **获取方式：**
@@ -283,7 +288,7 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 
 </details>
 
-### 🎮 NGA论坛
+### 🎮 NGA 论坛
 
 <details>
 <summary>点击展开配置</summary>
@@ -300,7 +305,7 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 3. 打开 NGA 官方 App，确保已登录，随便执行一个操作（进入首页/签到等）触发请求
 4. 在抓包记录中找到对 `https://ngabbs.com/nuke.php` 的 POST 请求
 5. 打开该请求的请求体，复制以下参数的值：
-   - `access_uid`: 你的UID
+   - `access_uid`: 你的 UID
    - `access_token`: 一串长字符串
 6. 按 `UID,AccessToken` 格式填写环境变量
    - 单账号示例：`123456,abcdefg`
@@ -315,7 +320,7 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 
 | 变量名 | 说明 | 是否必需 | 示例值 |
 |--------|------|----------|--------|
-| `TIEBA_COOKIE` | 百度贴吧Cookie | 必需 | `BDUSS=xxxxxx; STOKEN=xxxxx...` |
+| `TIEBA_COOKIE` | 百度贴吧 Cookie | 必需 | `BDUSS=xxxxxx; STOKEN=xxxxx...` |
 
 **获取方式：**
 1. 浏览器访问 [tieba.baidu.com](https://tieba.baidu.com) 并登录
@@ -333,7 +338,7 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 
 | 变量名 | 说明 | 是否必需 | 示例值 |
 |--------|------|----------|--------|
-| `SMZDM_COOKIE` | 什么值得买Cookie | 必需 | `__ckguid==xxxxx; device_id=xxxxx...` |
+| `SMZDM_COOKIE` | 什么值得买 Cookie | 必需 | `__ckguid==xxxxx; device_id=xxxxx...` |
 
 **获取方式：**
 1. 浏览器访问 [什么值得买](https://www.smzdm.com/) 并登录
@@ -351,14 +356,14 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 
 | 变量名 | 说明 | 是否必需 | 示例值 |
 |--------|------|----------|--------|
-| `SFSU_COOKIE` | 顺丰速运URL | 必需 | `https://mcs-mimp...` |
+| `SFSU_COOKIE` | 顺丰速运 URL | 必需 | `https://mcs-mimp...` |
 
 **获取方式：**
-1. 顺丰APP绑定微信后，添加机器人发送"顺丰"
-2. 打开小程序或APP → 我的 → 积分，抓包以下URL之一:
+1. 顺丰 APP 绑定微信后，添加机器人发送"顺丰"
+2. 打开小程序或 APP → 我的 → 积分，抓包以下 URL 之一:
    - `https://mcs-mimp-web.sf-express.com/mcs-mimp/share/weChat/shareGiftReceiveRedirect`
    - `https://mcs-mimp-web.sf-express.com/mcs-mimp/share/app/shareRedirect`
-3. 抓取URL后，使用 [URL编码工具](https://www.toolhelper.cn/EncodeDecode/Url) 进行编码
+3. 抓取 URL 后，使用 [URL 编码工具](https://www.toolhelper.cn/EncodeDecode/Url) 进行编码
 4. 多账号换行分隔
 
 </details>
@@ -370,7 +375,7 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 
 | 变量名 | 说明 | 是否必需 | 示例值 |
 |--------|------|----------|--------|
-| `ENSHAN_COOKIE` | 恩山论坛Cookie | 必需 | 完整的Cookie字符串 |
+| `ENSHAN_COOKIE` | 恩山论坛 Cookie | 必需 | 完整的 Cookie 字符串 |
 
 **获取方式：**
 1. 浏览器访问 [恩山论坛](https://www.right.com.cn/FORUM/) 并登录
@@ -387,7 +392,7 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 
 | 变量名 | 说明 | 是否必需 | 示例值 |
 |--------|------|----------|--------|
-| `YOUDAO_COOKIE` | 有道云笔记Cookie | 必需 | `__yadk_uid=xxx; YNOTE_SESS=xxx...` |
+| `YOUDAO_COOKIE` | 有道云笔记 Cookie | 必需 | `__yadk_uid=xxx; YNOTE_SESS=xxx...` |
 
 **获取方式：**
 1. 浏览器访问 [有道云笔记](https://note.youdao.com/) 并登录
@@ -397,8 +402,8 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 5. 多账号换行分隔
 
 **注意事项：**
-- 必须包含 `YNOTE_PERS` 字段，脚本需要从中提取用户ID
-- Cookie会定期过期，失效后需要重新获取
+- 必须包含 `YNOTE_PERS` 字段，脚本需要从中提取用户 ID
+- Cookie 会定期过期，失效后需要重新获取
 
 </details>
 
@@ -415,8 +420,8 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 
 **配置说明：**
 - `IKUUU_DOMAIN`: 默认 `https://ikuuu.nl`，如果域名变更可在此修改
-- 多账号用英文逗号分隔: `email1,email2`
-- 密码顺序要与邮箱顺序对应: `password1,password2`
+- 多账号用英文逗号分隔：`email1,email2`
+- 密码顺序要与邮箱顺序对应：`password1,password2`
 
 </details>
 
@@ -429,7 +434,7 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 |--------|------|----------|--------|
 | `Z_LUXURY_EMAIL` | 登录账号 | 必需 | `413210209` |
 | `Z_LUXURY_PASSWD` | 登录密码 | 必需 | `password123` |
-| `YESCAPTCHA_CLIENT_KEY` | 打码平台Key | 必需 | `43d97d5...` |
+| `YESCAPTCHA_CLIENT_KEY` | 打码平台 Key | 必需 | `43d97d5...` |
 | `Z_LUXURY_DOMAIN` | 自定义域名 | 可选 | `https://z.luxury` |
 
 **获取方式：**
@@ -437,8 +442,8 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 2. **账号密码**: 使用你的 z.luxury 登录账号和密码
 
 **配置说明：**
-- 多账号用英文逗号分隔: `email1,email2`
-- 密码顺序要与邮箱顺序对应: `password1,password2`
+- 多账号用英文逗号分隔：`email1,email2`
+- 密码顺序要与邮箱顺序对应：`password1,password2`
 - `YESCAPTCHA_CLIENT_KEY`: 必填，否则无法通过验证码
 
 </details>
@@ -450,25 +455,25 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 
 | 变量名 | 说明 | 是否必需 | 示例值 |
 |--------|------|----------|--------|
-| `LEAFLOW_COOKIE` | Cookie（JSON数组格式） | 必需 | 见下方说明 |
+| `LEAFLOW_COOKIE` | Cookie（JSON 数组格式） | 必需 | 见下方说明 |
 
 **获取方式：**
 1. 浏览器访问 [leaflow](https://leaflow.net/workspaces) 并登录
 2. 按 `F12` 打开开发者工具 → `Application` 标签页
 3. 左侧找到 Cookies → `https://leaflow.net`
 4. 复制以下三个 cookie 的完整值：
-   - `leaflow_session`：会话token（通常以 eyJ 开头）
-   - `remember_web_59ba36addc2b2f9401580f014c7f58ea4e30989d`：持久化登录token
-   - `XSRF-TOKEN`：CSRF防护token
+   - `leaflow_session`：会话 token（通常以 eyJ 开头）
+   - `remember_web_59ba36addc2b2f9401580f014c7f58ea4e30989d`：持久化登录 token
+   - `XSRF-TOKEN`：CSRF 防护 token
 5. 将 cookie 字符串转换为 JSON 数组格式：
 
 **配置示例：**
 ```json
 [
   {
-    "leaflow_session": "你的session值",
-    "remember_web_xxx": "你的remember值",
-    "XSRF-TOKEN": "你的token值"
+    "leaflow_session": "你的 session 值",
+    "remember_web_xxx": "你的 remember 值",
+    "XSRF-TOKEN": "你的 token 值"
   }
 ]
 ```
@@ -483,199 +488,128 @@ QL Script Hub 是一个专为青龙面板打造的综合性脚本库，提供签
 
 </details>
 
-### 🌐 AnyRouter
+### 🌐 NewAPI 通用签到（GemAI / AnyRouter / AgentRouter / 996Coder 等）
 
 <details>
 <summary>点击展开配置</summary>
 
-| 变量名 | 说明 | 是否必需 | 示例值 |
-|--------|------|----------|--------|
-| `ANYROUTER_ACCOUNTS` | 账号配置（JSON数组） | 必需 | 见下方说明 |
-| `ANYROUTER_BASE_URL` | API基础地址 | 可选 | `https://anyrouter.top` |
-| `ANYROUTER_TIMEOUT` | 请求超时时间（秒） | 可选 | `30` |
-| `ANYROUTER_VERIFY_SSL` | SSL证书验证 | 可选 | `true` |
-| `ANYROUTER_MAX_RETRIES` | 最大重试次数 | 可选 | `3` |
+所有基于 NewAPI 二次开发的站点均使用同一个脚本 `newapi_checkin.py`，通过 `NEWAPI_ACCOUNTS` 统一配置。
 
-**获取方式：**
-1. 浏览器访问 [AnyRouter](https://anyrouter.top) 并登录
-2. 按 `F12` 打开开发者工具 → `Network` 标签页
-3. 刷新页面，找到任意 API 请求（如 `/api/user/self`）
-4. 查看请求的 Headers：
-   - **Cookies**：复制 Cookie 字段的值（如 `session=xxx; ...`）
-   - **new-api-user**：复制该请求头的值（这是你的 api_user ID）
-5. 将信息组合成 JSON 数组格式
+| 变量名 | 说明 | 是否必需 |
+|--------|------|----------|
+| `NEWAPI_ACCOUNTS` | 账号配置（JSON 数组） | 必需 |
+| `BROWSER_HEADLESS` | 浏览器无头模式（浏览器模式生效） | 可选，默认 `true` |
+| `NEWAPI_TIMEOUT` | 请求超时秒数（Cookie 模式生效） | 可选，默认 `30` |
+| `NEWAPI_VERIFY_SSL` | SSL 证书验证（Cookie 模式生效） | 可选，默认 `true` |
+| `NEWAPI_MAX_RETRIES` | 最大重试次数（Cookie 模式生效） | 可选，默认 `3` |
 
-**配置示例：**
+**认证方式通过账号字段自动判断：**
+- 含 `cookies` + `api_user` 字段 → **Cookie 模式**（轻量，使用 requests 直接调 API，适合 GemAI、AnyRouter、AgentRouter 等）
+- 含 `email` + `password` 字段 → **浏览器模式**（Playwright 模拟登录，适合 996Coder 等）
+
+**签到接口：**
+- 默认调用 `POST /api/user/checkin`
+- 若站点使用其他路径（如 AnyRouter 的 `/api/user/sign_in`），在账号中加 `checkin_path` 字段覆盖
+- `checkin_path` 设为 `""` 表示登录即触发签到，不主动调用接口（此配置已废弃，所有站点统一使用 Cookie 模式）
+
+---
+
+**Cookie 模式账号示例（GemAI）：**
 ```json
 [
   {
-    "cookies": "session=你的session值",
-    "api_user": "你的api_user值"
+    "name": "GemAI 账号 1",
+    "base_url": "https://api.gemai.cc",
+    "cookies": "session=你的 session 值",
+    "api_user": "你的 api_user 值"
   }
 ]
 ```
 
-**注意事项：**
-- 必须使用 JSON 数组格式 `[{}]`
-- JSON 格式必须使用双引号
-- 多账号添加多个对象，用逗号分隔
-- 脚本会自动处理 WAF 挑战
-
-</details>
-
-### 🤖 AgentRouter
-
-<details>
-<summary>点击展开配置</summary>
-
-| 变量名 | 说明 | 是否必需 | 示例值 |
-|--------|------|----------|--------|
-| `AGENTROUTER_ACCOUNTS` | 账号配置（JSON数组） | 必需 | 见下方说明 |
-| `BROWSER_HEADLESS` | 浏览器无头模式 | 可选 | `true` |
-
-**认证方式：**
-- AgentRouter 使用 **邮箱密码认证**
-- 脚本会自动使用 Playwright 浏览器完成登录
-- 登录成功后自动触发签到，并显示账户余额
-
-**配置步骤：**
-
-1. **获取 AgentRouter 账号**
-   - 访问 [AgentRouter](https://agentrouter.org) 注册账号
-   - 记录你的登录邮箱和密码
-
-2. **配置环境变量**
-
-**单账号示例：**
+**Cookie 模式账号示例（AnyRouter，需覆盖签到路径）：**
 ```json
 [
   {
-    "name": "我的AgentRouter账号",
-    "email": "your_email@example.com",
+    "name": "AnyRouter 账号 1",
+    "base_url": "https://anyrouter.top",
+    "checkin_path": "/api/user/sign_in",
+    "cookies": "session=你的 session 值",
+    "api_user": "你的 api_user 值"
+  }
+]
+```
+
+**Cookie 模式账号示例（AgentRouter）：**
+```json
+[
+  {
+    "name": "AgentRouter-zengql",
+    "base_url": "https://agentrouter.org",
+    "cookies": "session=MTc2MjI0MDQ1OHxEWDhFQVFM...",
+    "api_user": "40548"
+  }
+]
+```
+
+**浏览器模式账号示例（996Coder）：**
+```json
+[
+  {
+    "name": "996Coder 账号 1",
+    "base_url": "https://996coder.com",
+    "email": "user@example.com",
     "password": "your_password"
   }
 ]
 ```
 
-**多账号示例：**
+**混合多账号示例（不同站点写在同一个数组里）：**
 ```json
 [
   {
-    "name": "账号1",
-    "email": "user1@example.com",
-    "password": "password1"
+    "name": "GemAI-zengqinglei",
+    "base_url": "https://api.gemai.cc",
+    "cookies": "cf_clearance=xxx; session=MTc3NjIzNTQ1NnxEWDhFQVFM...",
+    "api_user": "137004"
   },
   {
-    "name": "账号2",
-    "email": "user2@example.com",
-    "password": "password2"
-  }
-]
-```
-
-**⚠️ 注意事项：**
-- **青龙面板用户**: 必须安装 Playwright 和 Chromium 浏览器
-  - 最小配置：CPU 100m + 内存 384MB（可运行但成功率较低）
-  - 推荐配置：CPU 500m + 内存 1GB（成功率更高）
-  - 建议设置 `BROWSER_HEADLESS=false` 使用有头模式，成功率更高
-- **GitHub Actions 用户**: 使用无头模式运行
-- 登录过程需要 10-20 秒，请耐心等待
-- 签到成功后会显示账户余额信息
-- **安全提示**：密码会存储在环境变量中，请确保环境安全
-
-</details>
-
-### 💻 996Coder
-
-<details>
-<summary>点击展开配置</summary>
-
-| 变量名 | 说明 | 是否必需 | 示例值 |
-|--------|------|----------|--------|
-| `CODER996_ACCOUNTS` | 账号配置（JSON数组） | 必需 | 见下方说明 |
-| `BROWSER_HEADLESS` | 浏览器无头模式 | 可选 | `true` |
-
-**认证方式：**
-- 996Coder 使用 **邮箱密码认证**
-- 脚本会自动使用 Playwright 浏览器完成登录
-- 登录成功后自动调用签到接口，并显示账户余额
-
-**配置步骤：**
-
-1. **获取 996Coder 账号**
-   - 访问 [996Coder](https://996coder.com) 注册账号
-   - 记录你的登录邮箱和密码
-
-2. **配置环境变量**
-
-**单账号示例：**
-```json
-[
-  {
-    "name": "我的996Coder账号",
-    "email": "your_email@example.com",
-    "password": "your_password"
-  }
-]
-```
-
-**多账号示例：**
-```json
-[
-  {
-    "name": "账号1",
-    "email": "user1@example.com",
-    "password": "password1"
+    "name": "AnyRouter",
+    "base_url": "https://anyrouter.top",
+    "checkin_path": "/api/user/sign_in",
+    "cookies": "session=yyy",
+    "api_user": "67890"
   },
   {
-    "name": "账号2",
-    "email": "user2@example.com",
-    "password": "password2"
+    "name": "AgentRouter-zengql",
+    "base_url": "https://agentrouter.org",
+    "cookies": "session=MTc2MjI0MDQ1OHxEWDhFQVFM...",
+    "api_user": "40548"
+  },
+  {
+    "name": "996Coder",
+    "base_url": "https://996coder.com",
+    "email": "user@example.com",
+    "password": "password123"
   }
 ]
 ```
 
-**⚠️ 注意事项：**
-- **依赖说明**: 与 AgentRouter 相同，必须安装 `playwright` 和 `chromium`
-- **运行方式**: 脚本自动模拟登录流程，然后调用 API 签到
-- **安全提示**：密码会存储在环境变量中，请确保环境安全
-
-</details>
-
-### 💎 GemAI
-
-<details>
-<summary>点击展开配置</summary>
-
-| 变量名 | 说明 | 是否必需 | 示例值 |
-|--------|------|----------|--------|
-| `GEMAI_ACCOUNTS` | 账号配置（JSON数组） | 必需 | 见下方说明 |
-| `GEMAI_BASE_URL` | API基础地址 | 可选 | `https://api.gemai.cc` |
-| `GEMAI_TIMEOUT` | 请求超时时间（秒） | 可选 | `30` |
-
-**获取方式：**
-1. 浏览器访问 [GemAI](https://api.gemai.cc) 并登录
+**Cookie 获取方式（Cookie 模式）：**
+1. 浏览器访问对应站点并登录
 2. 按 `F12` 打开开发者工具 → `Network` 标签页
 3. 刷新页面，找到任意 API 请求（如 `/api/user/self`）
-4. 查看请求的 Headers：
-   - **Cookies**：复制 Cookie 字段的值（主要需要 `session`）
-   - **new-api-user**：复制该请求头的值（这是你的 api_user ID）
-5. 将信息组合成 JSON 数组格式
+4. 查看请求 Headers：
+   - `Cookie`：复制完整值（包含 `cf_clearance` 和 `session`，用分号 + 空格分隔）
+   - `new-api-user`：复制该请求头的值（即 `api_user`）
 
-**配置示例：**
-```json
-[
-  {
-    "cookies": "session=你的session值",
-    "api_user": "你的api_user值"
-  }
-]
-```
+**Cookie 格式说明：**
+- GemAI 等站点需要完整的 Cookie 字符串，格式：`cf_clearance=xxx; session=yyy`
+- session 值通常很长（以 `MT` 开头的 base64 编码字符串），请确保完整复制
 
-**注意事项：**
-- 必须使用 JSON 数组格式 `[{}]`
-- 多账号添加多个对象，用逗号分隔
-- 此脚本使用 Cookie 方式运行，无需 Playwright，轻量稳定
+**⚠️ 注意事项：**
+- 浏览器模式需要安装 Playwright：`pip install playwright && playwright install chromium`
+- 密码存储在环境变量中，请确保环境安全
+- 新站点若签到接口路径不同，通过 `checkin_path` 字段指定即可
 
 </details>
 
@@ -708,4 +642,3 @@ GitHub Actions 环境默认会使用 WARP 代理以绕过 IP 限制。如果某�
 ## 📄 许可证
 
 本项目基于 [MIT License](LICENSE) 开源协议。
-
